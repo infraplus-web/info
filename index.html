@@ -1,0 +1,624 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web GIS Pro - Master Edition</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.css" />
+    <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
+    <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+
+    <style>
+        /* --- GLOBAL STYLES --- */
+        body, html { margin: 0; padding: 0; height: 100%; width: 100%; font-family: 'Sarabun', sans-serif; background: #f0f2f5; overflow: hidden; }
+
+        /* --- DASHBOARD --- */
+        #dashboard-view { display: flex; flex-direction: column; height: 100%; width: 100%; }
+        .dash-header { background: #fff; padding: 15px 40px; border-bottom: 1px solid #dadce0; display: flex; justify-content: space-between; align-items: center; }
+        .dash-logo { font-size: 22px; color: #1a73e8; font-weight: 600; }
+        .dash-content { padding: 40px; overflow-y: auto; flex: 1; }
+        .project-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 25px; max-width: 1200px; margin: 0 auto; }
+        
+        .project-card { background: #fff; border-radius: 8px; border: 1px solid #e0e0e0; cursor: pointer; transition: 0.2s; height: 220px; display: flex; flex-direction: column; position: relative; }
+        .project-card:hover { transform: translateY(-3px); box-shadow: 0 6px 15px rgba(0,0,0,0.1); }
+        .card-preview { flex: 1; background: #f8f9fa; display: flex; align-items: center; justify-content: center; font-size: 50px; color: #dadce0; }
+        .card-body { padding: 15px; }
+        .card-title { font-weight: 600; color: #202124; }
+        .card-meta { font-size: 12px; color: #5f6368; }
+        .card-actions { position: absolute; top: 10px; right: 10px; opacity: 0; transition: 0.2s; }
+        .project-card:hover .card-actions { opacity: 1; }
+        .action-icon { width: 32px; height: 32px; background: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 5px rgba(0,0,0,0.2); color: #555; }
+        .action-icon:hover { background: #d93025; color: white; }
+
+        .btn-create { background: #1a73e8; color: white; padding: 10px 24px; border-radius: 24px; border: none; font-weight: 600; cursor: pointer; }
+        .btn-create:hover { background: #1557b0; }
+
+        /* --- MAP EDITOR --- */
+        #map-view { display: none; height: 100%; width: 100%; }
+
+        /* Left Sidebar */
+        #sidebar-left { width: 300px; background: #fff; border-right: 1px solid #dadce0; display: flex; flex-direction: column; z-index: 2000; flex-shrink: 0; box-shadow: 2px 0 8px rgba(0,0,0,0.1); }
+        
+        .editor-header { padding: 12px 15px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 10px; }
+        .btn-back { cursor: pointer; color: #5f6368; padding: 8px; border-radius: 50%; }
+        .btn-back:hover { background: #f1f3f4; }
+        .project-name { border: none; font-size: 16px; font-weight: 600; color: #3c4043; width: 100%; outline: none; }
+        .project-name:focus { border-bottom: 2px solid #1a73e8; }
+
+        .toolbar { padding: 10px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; gap: 8px; }
+        
+        /* Action Buttons */
+        .btn-group { display: flex; gap: 5px; }
+        .btn-tool {
+            flex: 1; padding: 8px; background: #fff; border: 1px solid #dadce0; border-radius: 4px;
+            cursor: pointer; font-size: 13px; font-weight: 600; color: #3c4043; display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .btn-tool:hover { background: #f1f3f4; color: #1a73e8; border-color: #1a73e8; }
+        
+        /* New Layer Button */
+        .btn-add-layer {
+            width: 100%; padding: 8px; background: #fff; border: 1px dashed #999; border-radius: 4px;
+            cursor: pointer; color: #1a73e8; font-weight: 600; font-size: 13px; margin-top: 5px;
+        }
+        .btn-add-layer:hover { background: #e8f0fe; border-color: #1a73e8; }
+
+        .search-bar { position: relative; }
+        .search-bar input { width: 100%; padding: 7px 30px 7px 10px; border: 1px solid #dadce0; border-radius: 4px; box-sizing: border-box; }
+        .search-bar i { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); color: #5f6368; cursor: pointer; }
+
+        /* Layer List */
+        #layer-list { flex: 1; overflow-y: auto; padding: 0; }
+        
+        .layer-group { border-bottom: 1px solid #eee; }
+        .group-header { 
+            padding: 8px 12px; display: flex; align-items: center; cursor: pointer; 
+            background: #fff; transition: 0.2s;
+        }
+        .group-header:hover { background: #f8f9fa; }
+        .group-title { font-weight: 600; font-size: 13px; color: #3c4043; flex: 1; margin-left: 8px; }
+        .group-actions { display: none; gap: 5px; }
+        .group-header:hover .group-actions { display: flex; }
+        .icon-btn { color: #5f6368; padding: 2px 5px; border-radius: 3px; }
+        .icon-btn:hover { background: #ddd; color: #d93025; }
+
+        .sub-items { display: block; padding-bottom: 5px; }
+        .layer-item { 
+            padding: 5px 10px 5px 35px; display: flex; align-items: center; cursor: pointer; 
+            font-size: 12px; color: #3c4043; border-left: 3px solid transparent;
+        }
+        .layer-item:hover { background: #e8f0fe; border-left-color: #1a73e8; }
+        .layer-item input { margin-right: 8px; }
+
+        /* Map & Right Panel */
+        #map { flex: 1; height: 100%; background: #e5e3df; }
+        #sidebar-right { width: 380px; background: #fff; border-left: 1px solid #dadce0; display: flex; flex-direction: column; z-index: 2000; flex-shrink: 0; box-shadow: -2px 0 5px rgba(0,0,0,0.1); transition: width 0.3s; }
+        #sidebar-right.expanded { width: 650px; }
+        
+        .rs-header { background: #333; color: white; padding: 10px 15px; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; }
+        #sv-container { height: 320px; background: #000; position: relative; display: flex; align-items: center; justify-content: center; }
+        #sv-image, #sv-iframe { width: 100%; height: 100%; object-fit: cover; border: none; }
+        #info-container { flex: 1; padding: 15px; overflow-y: auto; }
+        .info-row { border-bottom: 1px solid #f1f3f4; padding: 8px 0; }
+        .label { font-size: 11px; font-weight: 600; color: #5f6368; }
+        .value { font-size: 13px; color: #202124; margin-top: 2px; }
+
+        /* Popup */
+        .leaflet-popup-content-wrapper { padding: 0; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.2); }
+        .leaflet-popup-content { margin: 0; width: 280px !important; font-family: 'Sarabun'; }
+        .popup-header { padding: 12px 15px 5px; }
+        .popup-title-inp { width: 100%; border: none; font-size: 16px; font-weight: 600; color: #1a73e8; outline: none; }
+        .popup-title-inp:focus { border-bottom: 2px solid #1a73e8; }
+        .popup-body { padding: 0 15px 10px; }
+        .popup-desc-inp { width: 100%; border: none; resize: none; font-size: 13px; outline: none; font-family: 'Sarabun'; }
+        .popup-desc-inp:focus { background: #f1f3f4; padding: 5px; border-radius: 4px; }
+        .popup-footer { border-top: 1px solid #f1f3f4; padding: 8px 15px; background: #f8f9fa; border-radius: 0 0 8px 8px; display: flex; justify-content: flex-end; gap: 12px; }
+        .pop-icon { cursor: pointer; color: #5f6368; font-size: 14px; }
+        .pop-icon:hover { color: #1a73e8; }
+        .pop-icon.del:hover { color: #d93025; }
+
+    </style>
+</head>
+<body>
+
+    <div id="dashboard-view">
+        <div class="dash-header">
+            <div class="dash-logo"><i class="fa-solid fa-earth-americas"></i> Web GIS Pro</div>
+            <button class="btn-create" onclick="createNewProject()"><i class="fa-solid fa-plus"></i> สร้างแผนที่ใหม่</button>
+        </div>
+        <div class="dash-content">
+            <div class="project-grid" id="project-grid"></div>
+        </div>
+    </div>
+
+    <div id="map-view">
+        <div id="sidebar-left">
+            <div class="editor-header">
+                <div class="btn-back" onclick="saveAndExit()"><i class="fa-solid fa-arrow-left"></i></div>
+                <input type="text" id="proj-name" class="project-name" value="แผนที่ไม่มีชื่อ" onchange="updateMetaName(this.value)">
+            </div>
+            
+            <div class="toolbar">
+                <div class="btn-group">
+                    <button class="btn-tool" onclick="document.getElementById('fileInput').click()">
+                        <i class="fa-solid fa-folder-open"></i> นำเข้า
+                    </button>
+                    <button class="btn-tool" onclick="toggleExportMenu()">
+                        <i class="fa-solid fa-download"></i> ส่งออก
+                    </button>
+                </div>
+                
+                <div id="export-menu" style="display:none; background:#fff; border:1px solid #ddd; padding:5px; border-radius:4px; box-shadow:0 2px 5px rgba(0,0,0,0.1);">
+                    <button class="btn-tool" onclick="exportData('geojson')" style="width:100%;justify-content:flex-start;border:none;">JSON (GeoJSON)</button>
+                    <button class="btn-tool" onclick="exportData('kml')" style="width:100%;justify-content:flex-start;border:none;">KML (Google Earth)</button>
+                </div>
+
+                <input type="file" id="fileInput" accept=".json,.geojson,.kml,.zip" style="display:none;">
+                
+                <div class="search-bar">
+                    <input type="text" id="search-inp" placeholder="ค้นหาสถานที่...">
+                    <i class="fa-solid fa-magnifying-glass" onclick="searchLoc()"></i>
+                </div>
+
+                <button class="btn-add-layer" onclick="manuallyAddLayer()">+ เพิ่มเลเยอร์ใหม่</button>
+            </div>
+
+            <div id="layer-list"></div>
+        </div>
+
+        <div id="map"></div>
+
+        <div id="sidebar-right">
+            <div class="rs-header">
+                <span><i class="fa-solid fa-street-view"></i> มุมมองถนนจริง</span>
+                <button class="rs-btn" onclick="toggleSize()"><i class="fa-solid fa-expand"></i></button>
+            </div>
+            <div id="sv-container">
+                <div id="sv-msg" style="color:#aaa;">คลิกบนแผนที่เพื่อดูภาพ</div>
+                <img id="sv-image" style="display:none;">
+                <iframe id="sv-iframe" style="display:none;"></iframe>
+            </div>
+            <div class="rs-header" style="background:#f1f3f4; color:#3c4043; border-top:1px solid #dadce0;">
+                📝 รายละเอียด
+            </div>
+            <div id="info-container">
+                <div style="text-align:center; padding-top:20px; color:#aaa;">เลือกวัตถุบนแผนที่</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.min.js"></script>
+    <script src="https://unpkg.com/esri-leaflet@3.0.10/dist/esri-leaflet.js"></script>
+    <script src="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.js"></script>
+    <script src="https://unpkg.com/shpjs@latest/dist/shp.js"></script>
+    <script src="https://unpkg.com/tokml@0.4.0/tokml.js"></script>
+
+    <script>
+        // --- 1. CORE VARIABLES ---
+        let map;
+        let currentProjId = null;
+        let layerStore = {}; 
+        // Helper to store groups: groupId -> groupName
+        let groupStore = {}; 
+
+        // --- 2. DASHBOARD ---
+        function initDashboard() {
+            document.getElementById('dashboard-view').style.display = 'flex';
+            document.getElementById('map-view').style.display = 'none';
+            renderProjects();
+        }
+
+        function getMeta() { return JSON.parse(localStorage.getItem('webgis_meta') || '[]'); }
+
+        function renderProjects() {
+            const grid = document.getElementById('project-grid');
+            grid.innerHTML = '';
+            const list = getMeta().reverse();
+            list.forEach(p => {
+                const card = document.createElement('div');
+                card.className = 'project-card';
+                card.innerHTML = `
+                    <div class="card-actions"><div class="action-icon delete" onclick="deleteProject('${p.id}', event)"><i class="fa-solid fa-trash"></i></div></div>
+                    <div class="card-preview"><i class="fa-solid fa-map"></i></div>
+                    <div class="card-body"><div class="card-title">${p.name}</div><div class="card-meta">แก้ไขล่าสุด: ${new Date(p.date).toLocaleDateString('th-TH')}</div></div>
+                `;
+                card.onclick = () => openProject(p.id);
+                grid.appendChild(card);
+            });
+        }
+
+        function createNewProject() {
+            const id = 'proj_' + Date.now();
+            const meta = getMeta();
+            meta.push({ id: id, name: "แผนที่ไม่มีชื่อ", date: Date.now() });
+            localStorage.setItem('webgis_meta', JSON.stringify(meta));
+            localStorage.setItem('webgis_data_' + id, JSON.stringify([]));
+            openProject(id);
+        }
+
+        function deleteProject(id, e) {
+            e.stopPropagation();
+            if(confirm("ยืนยันการลบโปรเจค?")) {
+                let meta = getMeta().filter(p => p.id !== id);
+                localStorage.setItem('webgis_meta', JSON.stringify(meta));
+                localStorage.removeItem('webgis_data_' + id);
+                renderProjects();
+            }
+        }
+
+        // --- 3. MAP LOGIC ---
+        function initMap() {
+            if(map) return;
+            map = L.map('map', { zoomControl: false }).setView([13.7563, 100.5018], 11);
+            L.control.zoom({ position: 'topleft' }).addTo(map);
+
+            const gStreet = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3']}).addTo(map);
+            const gHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3']});
+            const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+            const esri = L.esri.basemapLayer('Imagery');
+
+            L.control.layers({ "Google ถนน": gStreet, "Google ดาวเทียม": gHybrid, "Esri": esri, "OSM": osm }, null, { position: 'bottomright' }).addTo(map);
+
+            map.pm.addControls({ position: 'topleft', drawCircle:false, drawCircleMarker:false, drawRectangle:false, cutPolygon:false });
+            L.control.polylineMeasure({ position: 'topleft', unit: 'metric' }).addTo(map);
+
+            map.on('pm:create', e => handleDraw(e.layer));
+            map.on('pm:remove', e => handleDelete(e.layer));
+            map.on('click', e => { if(!map.pm.globalRemovalModeEnabled()) handleMapClick(e.latlng); });
+        }
+
+        function openProject(id) {
+            currentProjId = id;
+            initMap();
+            
+            // Clear Old Data
+            Object.values(layerStore).forEach(l => map.removeLayer(l));
+            layerStore = {};
+            document.getElementById('layer-list').innerHTML = '';
+            
+            // Load Name
+            const meta = getMeta().find(p => p.id === id);
+            document.getElementById('proj-name').value = meta.name;
+
+            // Load Data
+            const rawData = localStorage.getItem('webgis_data_' + id);
+            const data = JSON.parse(rawData || '[]');
+            
+            // Separate data into groups based on property "layerName" if exists, else "Imported"
+            if(data.length > 0) {
+                // Group by layerName
+                const groups = {};
+                data.forEach(feat => {
+                    const gName = feat.properties._layerName || "ข้อมูลที่บันทึกไว้";
+                    if(!groups[gName]) groups[gName] = [];
+                    groups[gName].push(feat);
+                });
+
+                for(let gName in groups) {
+                    const subId = createGroupUI(gName);
+                    L.geoJSON(groups[gName], {
+                        onEachFeature: (f, l) => setupLayer(l, subId, f.properties)
+                    });
+                }
+            } else {
+                // If empty, create a default group
+                createGroupUI("เลเยอร์ 1");
+            }
+
+            document.getElementById('dashboard-view').style.display = 'none';
+            document.getElementById('map-view').style.display = 'flex';
+            setTimeout(() => map.invalidateSize(), 100);
+        }
+
+        function saveAndExit() { saveData(); initDashboard(); }
+        
+        function updateMetaName(name) {
+            let meta = getMeta();
+            let p = meta.find(p => p.id === currentProjId);
+            if(p) { p.name = name; p.date = Date.now(); }
+            localStorage.setItem('webgis_meta', JSON.stringify(meta));
+        }
+
+        function saveData() {
+            if(!currentProjId) return;
+            const geojson = [];
+            
+            // Iterate through DOM to preserve group structure
+            const groupDivs = document.querySelectorAll('.layer-group');
+            groupDivs.forEach(gDiv => {
+                const groupName = gDiv.querySelector('.group-title').innerText;
+                const items = gDiv.querySelectorAll('.layer-item');
+                items.forEach(item => {
+                    const lid = item.id.replace('row-', '');
+                    const layer = layerStore[lid];
+                    if(layer) {
+                        const j = layer.toGeoJSON();
+                        j.properties = layer.feature.properties;
+                        j.properties._layerName = groupName; // Save group association
+                        geojson.push(j);
+                    }
+                });
+            });
+
+            localStorage.setItem('webgis_data_' + currentProjId, JSON.stringify(geojson));
+            updateMetaName(document.getElementById('proj-name').value);
+        }
+
+        // --- 4. LAYER MANAGEMENT (ADD/DELETE GROUPS) ---
+        
+        // Manual Add Layer Button Logic
+        function manuallyAddLayer() {
+            const name = prompt("ตั้งชื่อเลเยอร์ใหม่:", "เลเยอร์ใหม่");
+            if(name) createGroupUI(name);
+        }
+
+        // Delete Group Logic
+        function deleteGroup(groupId) {
+            if(confirm("ลบเลเยอร์นี้และข้อมูลทั้งหมดข้างใน?")) {
+                const groupDiv = document.getElementById(groupId);
+                // Remove all layers inside this group from map and store
+                const items = groupDiv.querySelectorAll('.layer-item');
+                items.forEach(item => {
+                    const lid = item.id.replace('row-', '');
+                    if(layerStore[lid]) {
+                        map.removeLayer(layerStore[lid]);
+                        delete layerStore[lid];
+                    }
+                });
+                groupDiv.remove();
+                saveData();
+            }
+        }
+
+        function createGroupUI(name) {
+            const id = 'g-' + Date.now() + Math.random().toString(16).slice(2);
+            const subId = 'sub-' + id;
+            
+            const div = document.createElement('div');
+            div.className = 'layer-group';
+            div.id = id;
+            div.innerHTML = `
+                <div class="group-header" onclick="toggleGroup('${subId}', this)">
+                    <i class="fa-solid fa-caret-down"></i>
+                    <input type="checkbox" checked onclick="event.stopPropagation(); toggleAll('${subId}', this.checked)" style="margin:0 8px">
+                    <span class="group-title" contenteditable="true" onblur="saveData()">${name}</span>
+                    <div class="group-actions">
+                         <div class="icon-btn" onclick="event.stopPropagation(); deleteGroup('${id}')" title="ลบเลเยอร์"><i class="fa-solid fa-trash"></i></div>
+                    </div>
+                </div>
+                <div class="sub-items" id="${subId}"></div>
+            `;
+            document.getElementById('layer-list').appendChild(div);
+            return subId;
+        }
+
+        function handleDraw(layer) {
+            // Add to the LAST group by default, or create one if none
+            let groups = document.querySelectorAll('.sub-items');
+            let subId;
+            if(groups.length > 0) {
+                subId = groups[groups.length - 1].id;
+            } else {
+                subId = createGroupUI("เลเยอร์ 1");
+            }
+            
+            setupLayer(layer, subId, { name: "จุดใหม่", description: "" });
+            saveData();
+            openPopupEdit(layer);
+        }
+
+        function handleDelete(layer) {
+            const lid = L.stamp(layer);
+            const row = document.getElementById('row-' + lid);
+            if(row) row.remove();
+            delete layerStore[lid];
+            saveData();
+        }
+
+        function setupLayer(layer, subId, props) {
+            layer.addTo(map);
+            const lid = L.stamp(layer);
+            layerStore[lid] = layer;
+            
+            layer.feature = layer.feature || { type: "Feature", properties: props || {} };
+            const name = getSmartName(layer.feature.properties);
+
+            const container = document.getElementById(subId);
+            const div = document.createElement('div');
+            div.className = 'layer-item';
+            div.id = 'row-' + lid;
+            div.innerHTML = `
+                <input type="checkbox" checked onchange="toggleLayer(${lid}, this.checked)">
+                <span id="lbl-${lid}">${getIcon(layer)} ${name}</span>
+            `;
+            div.onclick = (e) => {
+                if(e.target.type !== 'checkbox') {
+                    panTo(layer);
+                    showInfo(layer.feature.properties, getCenter(layer));
+                    layer.openPopup();
+                }
+            };
+            container.appendChild(div);
+
+            layer.bindPopup(createPopup(layer, name));
+            layer.on('click', e => {
+                if(!map.pm.globalRemovalModeEnabled()) {
+                    L.DomEvent.stopPropagation(e);
+                    showInfo(layer.feature.properties, e.latlng || getCenter(layer));
+                }
+            });
+        }
+
+        // --- 5. EXPORT LOGIC (NO ALIEN LANGUAGE + DOWNLOAD) ---
+        function toggleExportMenu() {
+            const m = document.getElementById('export-menu');
+            m.style.display = m.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function exportData(format) {
+            // Collect all data
+            const geojson = { type: "FeatureCollection", features: [] };
+            
+            // Iterate visible layers to preserve order/grouping logic
+            Object.values(layerStore).forEach(l => {
+                const f = l.toGeoJSON();
+                f.properties = l.feature.properties;
+                geojson.features.push(f);
+            });
+
+            if(geojson.features.length === 0) { alert("ไม่มีข้อมูลที่จะส่งออก"); return; }
+
+            const projName = document.getElementById('proj-name').value || "data";
+            let content, filename, mimeType;
+
+            if(format === 'kml') {
+                // Convert to KML using tokml
+                content = tokml(geojson);
+                filename = projName + ".kml";
+                mimeType = "application/vnd.google-earth.kml+xml;charset=utf-8";
+            } else {
+                // GeoJSON
+                content = JSON.stringify(geojson, null, 2);
+                filename = projName + ".geojson";
+                mimeType = "application/json;charset=utf-8";
+            }
+
+            downloadFile(content, filename, mimeType);
+            document.getElementById('export-menu').style.display = 'none';
+        }
+
+        function downloadFile(content, filename, mimeType) {
+            // Add BOM for UTF-8 to prevent alien language in Excel/Windows
+            const bom = "\uFEFF"; 
+            const blob = new Blob([bom + content], { type: mimeType });
+            
+            const link = document.createElement("a");
+            if (link.download !== undefined) { 
+                const url = URL.createObjectURL(blob);
+                link.setAttribute("href", url);
+                link.setAttribute("download", filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        // --- 6. POPUP & UTILITIES ---
+        function createPopup(layer, name) {
+            const lid = L.stamp(layer);
+            const desc = layer.feature.properties.description || "";
+            return `
+                <div class="popup-header"><input class="popup-title-inp" id="pt-${lid}" value="${name}" readonly></div>
+                <div class="popup-body"><textarea class="popup-desc-inp" id="pd-${lid}" readonly placeholder="ไม่มีคำอธิบาย">${desc}</textarea></div>
+                <div class="popup-footer">
+                    <i class="fa-solid fa-pen pop-icon" onclick="enableEdit(${lid})"></i>
+                    <i class="fa-solid fa-trash pop-icon del" onclick="deleteLayer(${lid})"></i>
+                    <i class="fa-solid fa-check pop-icon" id="ps-${lid}" style="display:none; color:#28a745" onclick="saveEdit(${lid})"></i>
+                </div>
+            `;
+        }
+
+        window.enableEdit = function(lid) {
+            document.getElementById(`pt-${lid}`).removeAttribute('readonly');
+            document.getElementById(`pt-${lid}`).focus();
+            document.getElementById(`pd-${lid}`).removeAttribute('readonly');
+            document.getElementById(`ps-${lid}`).style.display = 'inline';
+        }
+
+        window.saveEdit = function(lid) {
+            const layer = layerStore[lid];
+            const name = document.getElementById(`pt-${lid}`).value;
+            const desc = document.getElementById(`pd-${lid}`).value;
+            layer.feature.properties.name = name;
+            layer.feature.properties.description = desc;
+            
+            document.getElementById(`lbl-${lid}`).innerHTML = `${getIcon(layer)} ${name}`;
+            
+            layer.closePopup(); layer.unbindPopup(); layer.bindPopup(createPopup(layer, name)); layer.openPopup();
+            saveData();
+        }
+
+        window.deleteLayer = function(lid) {
+            if(confirm("ลบจุดนี้?")) {
+                map.removeLayer(layerStore[lid]); // will trigger pm:remove logic
+            }
+        }
+        
+        window.openPopupEdit = function(layer) {
+            layer.openPopup();
+            setTimeout(() => enableEdit(L.stamp(layer)), 200);
+        }
+
+        // Import
+        document.getElementById('fileInput').onchange = function(e) {
+            const file = e.target.files[0];
+            if(!file) return;
+            const subId = createGroupUI(file.name.replace(/\.[^/.]+$/, ""));
+            
+            if(file.name.endsWith('.zip')) {
+                const reader = new FileReader();
+                reader.onload = function(b) { shp(b.target.result).then(g => processImport(g, subId)); }
+                reader.readAsArrayBuffer(file);
+            } else {
+                const reader = new FileReader();
+                reader.readAsText(file, "UTF-8");
+                reader.onload = function(txt) {
+                    try {
+                        let geo = JSON.parse(txt.target.result);
+                        processImport(geo, subId);
+                    } catch(e) { alert("Format Error"); }
+                }
+            }
+            this.value = '';
+        }
+
+        function processImport(geo, subId) {
+            const group = L.featureGroup();
+            const features = Array.isArray(geo) ? geo : (geo.features || [geo]);
+            L.geoJSON(features, { onEachFeature: (f,l) => { setupLayer(l, subId, f.properties); group.addLayer(l); } });
+            if(group.getLayers().length) map.fitBounds(group.getBounds());
+            saveData();
+        }
+
+        function showInfo(props, latlng) {
+            let h = "";
+            for(let k in props) if(k!=='_layerName') h += `<div class="info-row"><div class="label">${k}</div><div class="value">${props[k]}</div></div>`;
+            h += `<div class="info-row"><div class="label">พิกัด</div><div class="value">${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}</div></div>`;
+            document.getElementById('info-container').innerHTML = h;
+            // SV logic same as before
+            const img=document.getElementById('sv-image'), ifr=document.getElementById('sv-iframe'), msg=document.getElementById('sv-msg');
+            img.style.display='none'; ifr.style.display='none'; msg.style.display='block'; msg.innerText="Loading...";
+            fetch(`https://graph.mapillary.com/images?access_token=MLY|25589789454017833|bf665b64d332332cc14bc428b9f1d210&fields=thumb_1024_url&limit=1&closeto=${latlng.lng},${latlng.lat}`)
+            .then(r=>r.json()).then(d=>{
+                if(d.data?.length){ img.src=d.data[0].thumb_1024_url; img.style.display='block'; msg.style.display='none'; }
+                else { ifr.src=`https://maps.google.com/maps?q=&layer=c&cbll=${latlng.lat},${latlng.lng}&cbp=11,0,0,0,0&output=svembed`; ifr.style.display='block'; msg.style.display='none'; }
+            });
+        }
+
+        function handleMapClick(latlng) {
+             fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latlng.lat}&lon=${latlng.lon}`)
+            .then(r=>r.json()).then(d=>{
+                L.popup().setLatLng(latlng).setContent(`<div style="padding:10px;font-family:'Sarabun'"><b>${d.display_name||'ตำแหน่งที่เลือก'}</b></div>`).openOn(map);
+                showInfo({"ที่อยู่":d.display_name}, latlng);
+            });
+        }
+
+        // Helpers
+        function toggleGroup(id, el) { const d=document.getElementById(id); const i=el.querySelector('i'); if(d.style.display==='none'){d.style.display='block';i.className='fa-solid fa-caret-down';}else{d.style.display='none';i.className='fa-solid fa-caret-right';} }
+        function toggleAll(id, c) { document.getElementById(id).querySelectorAll('input').forEach(i=>{i.checked=c;i.dispatchEvent(new Event('change'))}); }
+        window.toggleLayer = (lid, c) => c ? map.addLayer(layerStore[lid]) : map.removeLayer(layerStore[lid]);
+        window.toggleSize = () => document.getElementById('sidebar-right').classList.toggle('expanded');
+        window.searchLoc = () => { const q=document.getElementById('search-inp').value; if(q) fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}`).then(r=>r.json()).then(d=>{if(d.length){map.setView([d[0].lat,d[0].lon],16);handleMapClick({lat:d[0].lat,lon:d[0].lon})}}); }
+        function getSmartName(p) { for(let k in p) if(/name|title|ชื่อ/i.test(k)) return p[k]; return Object.values(p)[0] || "วัตถุ"; }
+        function getIcon(l) { return (l instanceof L.Marker)?'<i class="fa-solid fa-location-dot" style="color:#1a73e8"></i>':'<i class="fa-solid fa-route" style="color:#1a73e8"></i>'; }
+        function panTo(l) { l.getBounds ? map.fitBounds(l.getBounds()) : (map.panTo(l.getLatLng()), map.setZoom(17)); }
+        function getCenter(l) { return l.getLatLng ? l.getLatLng() : l.getBounds().getCenter(); }
+
+        window.onload = initDashboard;
+    </script>
+</body>
+</html>
