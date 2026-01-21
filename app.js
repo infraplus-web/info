@@ -1,141 +1,112 @@
-// 1. ตั้งค่าแผนที่ (เปลี่ยนกลับเป็น OSM ก่อนเพื่อให้ชัวร์ว่าภาพขึ้น)
-var map = L.map('map', { zoomControl: false }).setView([13.7563, 100.5018], 10);
-L.control.zoom({ position: 'bottomright' }).addTo(map);
+let map, currentProjId;
+let layerStore = {}; 
+let clickMarker = null;
+let selectedSubId = null; // เก็บ ID เลเยอร์ที่เลือกไว้
 
-// ใช้แผนที่ถนนปกติ (ชัวร์สุด)
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '© OpenStreetMap'
-}).addTo(map);
-
-var layerGroups = {}; 
-
-// 2. ฟังก์ชันเดาชื่ออัจฉริยะ (แก้ปัญหา "ไม่มีชื่อ")
-function getSmartName(properties) {
-    if (!properties) return "ไม่มีข้อมูล";
-    
-    // 2.1 ลองหาจากคีย์ยอดฮิต
-    var keys = ['name', 'NAME', 'Name', 'title', 'label', 'LABEL', 'id', 'ID', 'road', 'ROAD'];
-    for (var i = 0; i < keys.length; i++) {
-        if (properties[keys[i]]) return properties[keys[i]];
-    }
-
-    // 2.2 ถ้าไม่เจอเลย ให้เอา "ค่าแรกที่เป็นตัวหนังสือ" มาโชว์
-    for (var key in properties) {
-        if (typeof properties[key] === 'string' && properties[key].length > 1) {
-            return properties[key]; // เจออะไรที่เป็นตัวหนังสือ เอาอันนั้นแหละ!
-        }
-    }
-    
-    return "รายการแบบไม่มีชื่อ";
-}
-
-// 3. ฟังก์ชันนำเข้าไฟล์
-document.getElementById('fileInput').addEventListener('change', function(e) {
-    var file = e.target.files[0];
-    if (!file) return;
-    var fileName = file.name.replace(/\.[^/.]+$/, ""); // ตัดนามสกุลออก
-    var reader = new FileReader();
-
-    reader.onload = function(event) {
-        try {
-            var data = JSON.parse(event.target.result);
-            createLayerGroup(fileName, data);
-        } catch (err) {
-            alert("ไฟล์เสียหรือรูปแบบไม่ถูกต้อง");
-        }
-    };
-    reader.readAsText(file);
-    this.value = '';
-});
-
-// 4. สร้าง Group Layer
-function createLayerGroup(groupName, geoJsonData) {
-    var leafletGroup = L.geoJSON(geoJsonData, {
-        onEachFeature: function(feature, layer) {
-            // ผูก Event คลิกเพื่อดูรูป
-            layer.on('click', function(e) {
-                L.DomEvent.stopPropagation(e);
-                var props = feature.properties || {};
-                var name = getSmartName(props);
-                
-                // เปิด Street View
-                var latlng = e.latlng || layer.getBounds().getCenter();
-                showStreetView(latlng, name);
-                
-                // Popup เล็กๆ บนแผนที่
-                layer.bindPopup("<b>" + name + "</b>").openPopup();
-            });
-        }
+// 1. เริ่มต้นแผนที่
+function initMap() {
+    if (map) return;
+    map = L.map('map', { zoomControl: false }).setView([13.75, 100.5], 10);
+    L.tileLayer('https://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}', {
+        subdomains: ['mt0','mt1','mt2','mt3']
     }).addTo(map);
 
-    var groupId = 'group_' + new Date().getTime();
-    layerGroups[groupId] = leafletGroup;
+    map.on('click', e => handleMapClick(e.latlng));
+}
 
-    // สร้าง Sidebar
-    var container = document.getElementById('layer-container');
-    var groupDiv = document.createElement('div');
-    groupDiv.className = 'layer-group';
-    groupDiv.innerHTML = `
-        <div class="layer-header">
-            <input type="checkbox" checked onchange="toggleGroup('${groupId}', this.checked)">
-            <span class="layer-title">📂 ${groupName}</span>
-        </div>
-        <ul class="feature-list" id="list-${groupId}"></ul>
-    `;
-    container.appendChild(groupDiv);
+// 2. จัดการ Street View และชื่อสถานที่
+async function handleMapClick(latlng, manualName) {
+    if (clickMarker) map.removeLayer(clickMarker);
+    clickMarker = L.marker(latlng).addTo(map);
 
-    // สร้างรายการย่อย
-    var listUl = groupDiv.querySelector(`#list-${groupId}`);
-    leafletGroup.eachLayer(function(layer) {
-        var props = layer.feature.properties || {};
-        var name = getSmartName(props); // ใช้ฟังก์ชันเดาชื่อ
-        var icon = (layer instanceof L.Marker) ? '📍' : '🛤️';
+    // ปรับปรุง Street View: ลบข้อความเก่าและโหลดภาพใหม่
+    const svIframe = document.getElementById('sv-iframe');
+    svIframe.style.display = 'block';
+    svIframe.src = `https://www.google.com/maps/embed/v1/streetview?key=YOUR_API_KEY&location=${latlng.lat},${latlng.lng}`; 
+    // หมายเหตุ: ถ้าไม่มี API Key ให้ใช้ URL แบบ embed ปกติได้ตามโค้ดเดิมของคุณ
 
-        var li = document.createElement('li');
-        li.className = 'feature-item';
-        li.innerHTML = `<span class="feature-icon">${icon}</span> <span>${name}</span>`;
-        
-        li.onclick = function() {
-            if (layer.getBounds) map.fitBounds(layer.getBounds());
-            else { map.panTo(layer.getLatLng()); map.setZoom(18); }
-            layer.fire('click'); // สั่งให้เหมือนคลิกบนแผนที่
-        };
-        listUl.appendChild(li);
-    });
-
-    // ซูมไปหาข้อมูลที่เพิ่งนำเข้า
-    if (leafletGroup.getLayers().length > 0) {
-        map.fitBounds(leafletGroup.getBounds());
+    // ดึงชื่อสถานที่จริง (Reverse Geocoding)
+    try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lng}&accept-language=th`);
+        const data = await res.json();
+        const placeName = manualName || data.display_name;
+        clickMarker.bindPopup(`<b>${placeName}</b>`).openPopup();
+        updateInfoPanel(placeName, latlng);
+    } catch (e) {
+        console.error("Geocoding error", e);
     }
 }
 
-window.toggleGroup = function(id, checked) {
-    if (checked) map.addLayer(layerGroups[id]);
-    else map.removeLayer(layerGroups[id]);
-};
-
-// 5. Street View Function (Mapillary)
-function showStreetView(latlng, title) {
-    var panel = document.getElementById('street-view-panel');
-    var img = document.getElementById('sv-image');
-    
-    panel.style.display = 'flex';
-    document.querySelector('.sv-header span').innerText = title || "Street View";
-    img.src = ""; // เคลียร์รูปเก่า
-
-    var token = 'MLY|25589789454017833|bf665b64d332332cc14bc428b9f1d210';
-    var url = `https://graph.mapillary.com/images?access_token=${token}&fields=thumb_1024_url&limit=1&closeto=${latlng.lng},${latlng.lat}`;
-
-    fetch(url).then(r => r.json()).then(d => {
-        if (d.data && d.data.length > 0) {
-            img.src = d.data[0].thumb_1024_url;
-        } else {
-            alert("จุดนี้ไม่มีภาพ Street View ค่ะ");
-            panel.style.display = 'none';
-        }
-    });
+// 3. ระบบเลือกเลเยอร์ (Active Layer)
+function createGroupUI(name) {
+    const id = 'g-' + Date.now();
+    const subId = 'sub-' + id;
+    const div = document.createElement('div');
+    div.className = 'layer-group';
+    div.innerHTML = `
+        <div class="group-header" onclick="setActiveLayer('${subId}', this)">
+            <i class="fa-solid fa-folder"></i>
+            <span class="group-title">${name}</span>
+        </div>
+        <div class="sub-items" id="${subId}"></div>
+    `;
+    document.getElementById('layer-list').appendChild(div);
+    return subId;
 }
 
-window.closeStreetView = function() {
-    document.getElementById('street-view-panel').style.display = 'none';
+function setActiveLayer(subId, element) {
+    document.querySelectorAll('.group-header').forEach(el => el.classList.remove('active-layer-target'));
+    element.classList.add('active-layer-target');
+    selectedSubId = subId; // ข้อมูลใหม่จะเข้าที่นี่
+}
+
+// 4. การนำเข้าข้อมูลหลายรูปแบบ
+document.getElementById('fileInput').onchange = function(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const targetId = selectedSubId || createGroupUI(file.name.split('.')[0]);
+    const reader = new FileReader();
+    const ext = file.name.split('.').pop().toLowerCase();
+
+    reader.onload = async (event) => {
+        let geojson;
+        if (ext === 'zip') {
+            geojson = await shp(event.target.result);
+        } else if (ext === 'kml') {
+            const kml = new DOMParser().parseFromString(event.target.result, 'text/xml');
+            geojson = toGeoJSON.kml(kml);
+        } else if (ext === 'csv') {
+            Papa.parse(event.target.result, {
+                header: true,
+                complete: (results) => processCSV(results.data, targetId)
+            });
+            return;
+        } else {
+            geojson = JSON.parse(event.target.result);
+        }
+        L.geoJSON(geojson, {
+            onEachFeature: (f, l) => setupLayer(l, targetId, f.properties)
+        }).addTo(map);
+    };
+
+    if (ext === 'zip') reader.readAsArrayBuffer(file);
+    else reader.readAsText(file);
 };
+
+// 5. ค้นหาด้วย Enter
+document.getElementById('search-inp').addEventListener('keypress', e => {
+    if (e.key === 'Enter') searchLoc();
+});
+
+async function searchLoc() {
+    const q = document.getElementById('search-inp').value;
+    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${q}&accept-language=th`);
+    const data = await res.json();
+    if (data.length > 0) {
+        const loc = data[0];
+        const latlng = { lat: parseFloat(loc.lat), lng: parseFloat(loc.lon) };
+        map.setView(latlng, 16);
+        handleMapClick(latlng, loc.display_name);
+    }
+}
