@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>WEB GIS SYSTEM</title>
     
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.css" />
     <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
@@ -47,6 +49,40 @@
         .toolbar { padding: 10px 15px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; gap: 10px; }
         .btn-tool { width: 100%; padding: 8px; background: #fff; border: 1px solid #dadce0; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-tool:hover { background: #e8f0fe; color: #1a73e8; border-color: #1a73e8; }
+        
+        /* Modern Save Popup CSS */
+        .save-modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); z-index: 12000;
+            justify-content: center; align-items: center;
+            backdrop-filter: blur(2px);
+        }
+        .save-modal-box {
+            background: white; padding: 30px; border-radius: 16px;
+            width: 380px; text-align: center;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+            font-family: 'Sarabun', sans-serif;
+            transform: scale(0.9); opacity: 0; transition: 0.3s;
+        }
+        .save-modal-box.active { transform: scale(1); opacity: 1; }
+        .save-icon { font-size: 50px; color: #1a73e8; margin-bottom: 15px; }
+        .save-title { font-size: 20px; font-weight: bold; margin-bottom: 10px; color: #333; }
+        .save-input {
+            width: 100%; padding: 12px; margin: 15px 0;
+            border: 2px solid #eee; border-radius: 8px; font-size: 16px; outline: none; transition: 0.2s;
+        }
+        .save-input:focus { border-color: #1a73e8; }
+        .save-actions { display: flex; gap: 10px; justify-content: center; margin-top: 10px; }
+        .btn-save-cancel {
+            padding: 10px 20px; border: none; background: #f1f3f4; color: #333;
+            border-radius: 8px; cursor: pointer; font-weight: 600;
+        }
+        .btn-save-confirm {
+            padding: 10px 25px; border: none; background: #1a73e8; color: white;
+            border-radius: 8px; cursor: pointer; font-weight: 600; box-shadow: 0 4px 10px rgba(26,115,232,0.3);
+        }
+        .btn-save-confirm:disabled { background: #ccc; cursor: not-allowed; box-shadow: none; }
+
         .search-bar { position: relative; }
         .search-bar input { width: 100%; padding: 8px 35px 8px 10px; border: 1px solid #dadce0; border-radius: 4px; font-family: 'Sarabun'; }
         .search-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); color: #5f6368; cursor: pointer; }
@@ -91,7 +127,7 @@
 
         /* POPUP (Modern + Resized) */
         .leaflet-popup-content-wrapper { padding: 0; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); border: none; }
-        .leaflet-popup-content { margin: 0; min-width: 360px !important; font-family: 'Sarabun'; } /* Wider Popup */
+        .leaflet-popup-content { margin: 0; min-width: 360px !important; font-family: 'Sarabun'; }
         .leaflet-popup-tip { box-shadow: 0 4px 20px rgba(0,0,0,0.15); }
         .popup-header { padding: 15px 20px 5px; border-bottom: 1px solid #f0f0f0; }
         .popup-title-inp { width: 100%; border: none; font-size: 16px; font-weight: 600; color: #202124; outline: none; background: transparent; }
@@ -105,7 +141,7 @@
         .pop-icon:hover { background: #f0f0f0; color: #1a73e8; }
         .pop-icon.del:hover { background: #fce8e6; color: #d93025; }
 
-        /* MODALS */
+        /* MODALS (General) */
         .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 10000; display: none; align-items: center; justify-content: center; }
         .modal-box { background: white; width: 400px; max-width: 90%; border-radius: 8px; padding: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
         
@@ -173,6 +209,18 @@
         </div>
     </div>
 
+    <div id="saveModal" class="save-modal-overlay">
+        <div class="save-modal-box" id="saveModalBox">
+            <div id="saveIconContainer" class="save-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+            <div id="saveTitle" class="save-title">บันทึกโปรเจกต์</div>
+            <input type="text" id="projectNameInput" class="save-input" placeholder="ตั้งชื่อผลงานของคุณ...">
+            <div class="save-actions" id="saveActions">
+                <button class="btn-save-cancel" onclick="closeSaveModal()">ยกเลิก</button>
+                <button class="btn-save-confirm" id="btnConfirmSave" onclick="confirmSaveToSupabase()">บันทึกทันที</button>
+            </div>
+        </div>
+    </div>
+
     <div id="loader"><div class="spinner"></div><div style="margin-top:10px; color:#1a73e8; font-weight:600;">กำลังดำเนินการ...</div></div>
 
     <div id="dashboard-view">
@@ -194,8 +242,11 @@
                 </div>
                 <input type="text" id="proj-name" class="project-name" value="แผนที่ไม่มีชื่อ" onchange="updateMetaName(this.value)">
             </div>
-            
+
             <div class="toolbar">
+                <div class="btn-tool" onclick="saveProject()" style="background-color: #28a745; color: white; margin-bottom: 5px;">
+                    <i class="fa-solid fa-save"></i> บันทึกงาน
+                </div>
                 <div class="btn-tool" onclick="document.getElementById('fileInput').click()">
                     <i class="fa-solid fa-upload"></i> นำเข้าข้อมูล (Zip/KML/JSON)
                 </div>
@@ -245,6 +296,7 @@
     <script src="https://unpkg.com/shp-write@0.3.2/shpwrite.js"></script>
 
     <script>
+        // --- Global Variables ---
         let map, currentProjId, layerStore = {}, clickMarker, exportTargetGroupId;
         let selectedSubId = null;
         let editingLayerId = null; 
@@ -265,9 +317,7 @@
             try {
                 const data = localStorage.getItem('webgis_meta');
                 return data ? JSON.parse(data) : [];
-            } catch(e) {
-                return [];
-            }
+            } catch(e) { return []; }
         }
         function renderProjects() {
             const grid = document.getElementById('project-grid'); grid.innerHTML = '';
@@ -290,9 +340,7 @@
                 localStorage.setItem('webgis_meta', JSON.stringify(meta));
                 localStorage.setItem('webgis_data_' + id, JSON.stringify([]));
                 openProject(id);
-            } catch(e) {
-                alert("เกิดข้อผิดพลาดในการสร้างโปรเจค: " + e);
-            }
+            } catch(e) { alert("เกิดข้อผิดพลาดในการสร้างโปรเจค: " + e); }
         }
         function askDeleteProject(id, e) {
             e.stopPropagation();
@@ -315,9 +363,7 @@
             btn.onclick = () => map.locate({setView:true, maxZoom:16});
             const Ctl = L.Control.extend({ options:{position:'topleft'}, onAdd:()=>btn });
             map.addControl(new Ctl());
-            map.on('locationfound', e => {
-                handleMapClick(e.latlng, "ตำแหน่งของคุณ");
-            });
+            map.on('locationfound', e => { handleMapClick(e.latlng, "ตำแหน่งของคุณ"); });
 
             // Base Layers
             const gStreet = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3']}).addTo(map);
@@ -326,10 +372,7 @@
             const esri = L.esri.basemapLayer('Imagery');
             
             L.control.layers({ 
-                "Google ถนน": gStreet, 
-                "Google ดาวเทียม": gHybrid, 
-                "OpenStreetMap": osm,
-                "Esri Imagery": esri
+                "Google ถนน": gStreet, "Google ดาวเทียม": gHybrid, "OpenStreetMap": osm, "Esri Imagery": esri
             }, null, { position: 'bottomright' }).addTo(map);
 
             map.pm.addControls({ position: 'topleft', drawCircle:true, drawCircleMarker:false });
@@ -471,9 +514,7 @@
             const svgIcon = L.divIcon({
                 className: 'custom-div-icon',
                 html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36" fill="${color}" stroke="#ffffff" stroke-width="1.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`,
-                iconSize: [36, 36],
-                iconAnchor: [18, 36],
-                popupAnchor: [0, -36]
+                iconSize: [36, 36], iconAnchor: [18, 36], popupAnchor: [0, -36]
             });
             return L.marker(latlng, { icon: svgIcon });
         }
@@ -482,7 +523,6 @@
             if (layer instanceof L.Marker) {
                const latlng = layer.getLatLng();
                const color = props._color || '#1a73e8';
-               // Check if it's already our custom marker
                if (!(layer.options.icon && layer.options.icon.options.className === 'custom-div-icon')) {
                    layer = createCustomMarker(latlng, color);
                }
@@ -491,13 +531,12 @@
             layer.addTo(map);
             const lid = L.stamp(layer);
             layerStore[lid] = layer;
+            layer.subId = subId;
             layer.feature = layer.feature || { type: "Feature", properties: props || {} };
             
-            // Hover Tooltip
             if(layer.bindTooltip) {
                 layer.bindTooltip(props.name || "ไม่มีชื่อ", { direction: 'top', offset: [0,-36] });
             }
-            
             if(layer instanceof L.Path && props._color) {
                 layer.setStyle({ color: props._color, fillColor: props._color });
             }
@@ -513,21 +552,17 @@
         }
 
         window.toggleLayer = function(lid, checked) {
-            if (checked) map.addLayer(layerStore[lid]);
-            else map.removeLayer(layerStore[lid]);
+            if (checked) map.addLayer(layerStore[lid]); else map.removeLayer(layerStore[lid]);
         };
 
         function handleDraw(layer) {
             let subId = selectedSubId || (document.querySelectorAll('.sub-items').length ? document.querySelectorAll('.sub-items')[0].id : createGroupUI("เลเยอร์ 1"));
-            
-            // Convert drawn marker to SVG
             if (layer instanceof L.Marker) {
                 const latlng = layer.getLatLng();
                 map.removeLayer(layer);
                 layer = createCustomMarker(latlng, '#1a73e8');
                 layer.addTo(map);
             }
-            
             setupLayer(layer, subId, { name: "จุดใหม่", description: "" });
             saveData(); setTimeout(()=> {layer.openPopup(); enableEdit(L.stamp(layer));}, 200);
         }
@@ -538,9 +573,8 @@
 
         // --- 4. SMART PLACE NAMES & SEARCH ---
         function handleMapClick(latlng, manualName) {
-            // Updated: Create Red Marker on Click
             if(clickMarker) map.removeLayer(clickMarker);
-            clickMarker = createCustomMarker(latlng, '#d93025'); // Google Red
+            clickMarker = createCustomMarker(latlng, '#d93025');
             clickMarker.addTo(map);
             map.panTo(latlng);
 
@@ -552,19 +586,14 @@
 
             fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lon}&accept-language=th&addressdetails=1&zoom=18`)
             .then(r=>r.json()).then(d=>{
-                let name = "ตำแหน่งที่เลือก";
-                let detail = d.display_name || "";
-
-                if (d.name && d.name.length > 0) {
-                    name = d.name; 
-                } else if(d.address) {
+                let name = "ตำแหน่งที่เลือก", detail = d.display_name || "";
+                if (d.name && d.name.length > 0) name = d.name; 
+                else if(d.address) {
                     const a = d.address;
                     name = a.amenity || a.shop || a.tourism || a.building || a.office || a.leisure || a.natural;
                     if(!name) name = a.road ? (a.soi ? a.road + " " + a.soi : a.road) : (a.village || a.suburb);
                 }
-                
                 if(!name || name === "undefined") name = detail.split(',')[0];
-
                 clickMarker.bindPopup(createSimplePopup(name, detail, latlng)).openPopup();
                 showInfo({"สถานที่": name, "ที่อยู่": detail}, latlng);
             }).catch(() => {});
@@ -579,20 +608,15 @@
                 if(d.length) {
                     const lat=parseFloat(d[0].lat), lon=parseFloat(d[0].lon);
                     map.setView([lat,lon], 16);
-                    // Updated: Create Red Marker on Search
                     handleMapClick({lat:lat, lon:lon}, d[0].display_name.split(',')[0]);
                 } else showModal("ไม่พบ","ไม่พบสถานที่",false,()=>{});
             }).catch(()=>{showLoader(false)});
         }
+        document.getElementById('search-inp').addEventListener('keypress', function (e) { if (e.key === 'Enter') searchLoc(); });
 
-        document.getElementById('search-inp').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') searchLoc();
-        });
-
-        // --- 5. IMPORT/EXPORT (Updated) ---
+        // --- 5. IMPORT/EXPORT ---
         function processFile(file, subId) {
             if(!file) return; showLoader(true);
-            
             const fileName = file.name;
             const ext = fileName.split('.').pop().toLowerCase();
             const targetId = subId || createGroupUI(fileName.replace(/\.[^/.]+$/, ""));
@@ -603,29 +627,9 @@
                     shp(b.target.result).then(function(geojson){
                         if(Array.isArray(geojson)) { geojson.forEach(g => finishImport(g, targetId)); } 
                         else { finishImport(geojson, targetId); }
-                    }).catch(err => { 
-                        alert("File Error: ไม่สามารถอ่านไฟล์ Zip ได้ (ตรวจสอบว่ามี .shp และ .dbf หรือไม่)"); 
-                        showLoader(false); 
-                    });
+                    }).catch(err => { alert("Zip Error"); showLoader(false); });
                 }
                 r.readAsArrayBuffer(file);
-            } 
-            else if (ext === 'csv') {
-                Papa.parse(file, { header: true, skipEmptyLines: true, complete: (res) => {
-                    if(res.data.length === 0) { alert("CSV Empty"); showLoader(false); return; }
-                    const keys = Object.keys(res.data[0]);
-                    const latKey = keys.find(k => /lat|latitude|y/i.test(k));
-                    const lonKey = keys.find(k => /lon|lng|longitude|x/i.test(k));
-                    if(!latKey || !lonKey) { alert("ไม่พบคอลัมน์พิกัดใน CSV"); showLoader(false); return; }
-                    res.data.forEach(row => {
-                        const lat = parseFloat(row[latKey]), lng = parseFloat(row[lonKey]);
-                        if(!isNaN(lat) && !isNaN(lng)) {
-                            const marker = createCustomMarker([lat,lng], '#1a73e8');
-                            setupLayer(marker, targetId, row);
-                        }
-                    }); 
-                    saveData(); showLoader(false);
-                }});
             } 
             else if (['kml', 'json', 'geojson'].includes(ext)) {
                 const r = new FileReader(); r.onload=t=>{ 
@@ -635,11 +639,8 @@
                     } catch(e){ alert("File Error: " + e); showLoader(false); }
                 }; r.readAsText(file);
             } 
-            
-            document.getElementById('fileInput').value = '';
-            document.getElementById('layerFileInput').value = '';
+            document.getElementById('fileInput').value = ''; document.getElementById('layerFileInput').value = '';
         }
-
         document.getElementById('fileInput').onchange = function(e) { processFile(e.target.files[0], null); };
         document.getElementById('layerFileInput').onchange = function(e) { processFile(e.target.files[0], selectedSubId); };
 
@@ -648,14 +649,11 @@
             document.getElementById(menuId).style.display = 'none'; 
             document.getElementById('layerFileInput').click();
         }
-
         function finishImport(g, subId) {
             const grp = L.featureGroup();
             const features = Array.isArray(g) ? g : (g.features || [g]); 
             L.geoJSON(features, { 
-                pointToLayer: function (feature, latlng) {
-                    return createCustomMarker(latlng, '#1a73e8');
-                },
+                pointToLayer: function (feature, latlng) { return createCustomMarker(latlng, '#1a73e8'); },
                 onEachFeature:(f,l)=>{
                     f.properties._layerName = document.getElementById(subId).previousElementSibling.querySelector('.group-title').innerText;
                     setupLayer(l,subId,f.properties); 
@@ -665,13 +663,10 @@
             if(grp.getLayers().length) map.fitBounds(grp.getBounds());
             saveData(); showLoader(false);
         }
-
         function exportGroup(groupName, menuId) { 
             if(menuId) document.getElementById(menuId).style.display = 'none';
-            exportTargetGroupId = groupName; 
-            document.getElementById('export-modal').style.display='flex'; 
+            exportTargetGroupId = groupName; document.getElementById('export-modal').style.display='flex'; 
         }
-
         function triggerExport(format) {
             let data = [];
             Object.values(layerStore).forEach(l => {
@@ -679,38 +674,16 @@
                     let f = l.toGeoJSON(); f.properties = l.feature.properties; data.push(f);
                 }
             });
-
-            if(!data.length) {
-                document.querySelectorAll('.layer-group').forEach(g => {
-                    if(g.querySelector('.group-title').innerText === exportTargetGroupId) {
-                        g.querySelectorAll('.layer-item').forEach(i => {
-                            const l = layerStore[i.id.replace('row-', '')];
-                            if(l) data.push(l.toGeoJSON());
-                        });
-                    }
-                });
-            }
-
-            if(!data.length) return alert("ไม่มีข้อมูลในเลเยอร์นี้");
-            
+            if(!data.length) return alert("ไม่มีข้อมูล");
             const name = exportTargetGroupId || "data";
             const geojson = {type:'FeatureCollection', features:data};
             let content, ext, type;
 
             if(format === 'shapefile') {
                 try {
-                    const options = { 
-                        folder: name, 
-                        types: { 
-                            point: name + '_point', 
-                            polygon: name + '_poly', 
-                            line: name + '_line' 
-                        } 
-                    };
-                    shpwrite.download(geojson, options);
-                    document.getElementById('export-modal').style.display='none';
-                    return; 
-                } catch(e) { alert("Export Error: " + e); return; }
+                    const options = { folder: name, types: { point: name+'_pt', polygon: name+'_poly', line: name+'_line' } };
+                    shpwrite.download(geojson, options); document.getElementById('export-modal').style.display='none'; return; 
+                } catch(e) { return alert("Export Error"); }
             } else if(format === 'csv') {
                 const rows = data.map(f => {
                     let r = { ...f.properties };
@@ -723,30 +696,24 @@
             } else {
                 content = JSON.stringify(geojson); ext = 'geojson'; type = 'application/json;charset=utf-8';
             }
-            
             const blob = new Blob(["\uFEFF"+content], {type:type});
             const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name+'.'+ext; a.click();
             document.getElementById('export-modal').style.display='none';
         }
 
-        // --- 6. MODERN POPUP & COLOR (Updated V2) ---
+        // --- 6. POPUP ---
         function createPopup(layer, name) {
             const lid = L.stamp(layer);
             const desc = layer.feature.properties.description || "";
             return `
-                <div class="popup-header">
-                    <input class="popup-title-inp" id="pt-${lid}" value="${name}" readonly>
-                </div>
+                <div class="popup-header"><input class="popup-title-inp" id="pt-${lid}" value="${name}" readonly></div>
                 <div class="popup-body">
                     <textarea class="popup-desc-inp" id="pd-${lid}" readonly placeholder="เพิ่มคำอธิบาย...">${desc}</textarea>
-                    
                     <div class="color-picker-row" id="cp-${lid}" style="display:none;">
                         <div class="color-circle" style="background:#1a73e8" onclick="changeColor(${lid}, '#1a73e8')"></div>
                         <div class="color-circle" style="background:#d93025" onclick="changeColor(${lid}, '#d93025')"></div>
                         <div class="color-circle" style="background:#f9ab00" onclick="changeColor(${lid}, '#f9ab00')"></div>
                         <div class="color-circle" style="background:#1e8e3e" onclick="changeColor(${lid}, '#1e8e3e')"></div>
-                        <div class="color-circle" style="background:#a142f4" onclick="changeColor(${lid}, '#a142f4')"></div>
-                        <div class="color-circle" style="background:#000000" onclick="changeColor(${lid}, '#000000')"></div>
                         <input type="color" onchange="changeColor(${lid}, this.value)" style="width:30px; border:none; background:none; cursor:pointer;">
                     </div>
                 </div>
@@ -756,209 +723,117 @@
                     <i class="fa-solid fa-check pop-icon" id="ps-${lid}" style="display:none; color:#1e8e3e" onclick="saveEdit(${lid})"></i>
                 </div>`;
         }
-
         function enableEdit(lid) { 
-            document.getElementById(`pt-${lid}`).removeAttribute('readonly'); 
-            document.getElementById(`pt-${lid}`).focus(); 
+            document.getElementById(`pt-${lid}`).removeAttribute('readonly'); document.getElementById(`pt-${lid}`).focus(); 
             document.getElementById(`pd-${lid}`).removeAttribute('readonly'); 
-            document.getElementById(`ps-${lid}`).style.display='inline'; 
-            document.getElementById(`cp-${lid}`).style.display='flex'; 
+            document.getElementById(`ps-${lid}`).style.display='inline'; document.getElementById(`cp-${lid}`).style.display='flex'; 
         }
-
         function changeColor(lid, c) { 
             const l = layerStore[lid]; 
-            // Feature 1: Stable Color Change
             if(l instanceof L.Marker && l.options.icon.options.className === 'custom-div-icon') {
-                const newIcon = createCustomMarker(l.getLatLng(), c).options.icon;
-                l.setIcon(newIcon);
-            } else if(l.setStyle) {
-                l.setStyle({color:c, fillColor:c}); 
-            }
+                l.setIcon(createCustomMarker(l.getLatLng(), c).options.icon);
+            } else if(l.setStyle) { l.setStyle({color:c, fillColor:c}); }
             l.feature.properties._color = c; 
         }
-
         function saveEdit(lid) { 
-            const l = layerStore[lid]; 
-            const n = document.getElementById(`pt-${lid}`).value; 
-            l.feature.properties.name = n; 
-            l.feature.properties.description = document.getElementById(`pd-${lid}`).value; 
+            const l = layerStore[lid], n = document.getElementById(`pt-${lid}`).value; 
+            l.feature.properties.name = n; l.feature.properties.description = document.getElementById(`pd-${lid}`).value; 
             document.getElementById(`lbl-${lid}`).innerHTML = `${getIcon(l)} ${n}`; 
-            l.closePopup(); l.unbindPopup(); l.bindPopup(createPopup(l, n)); l.openPopup(); 
-            saveData(); 
+            l.closePopup(); l.unbindPopup(); l.bindPopup(createPopup(l, n)); l.openPopup(); saveData(); 
         }
-
         function deleteFeature(lid) {
-            showModal("ลบข้อมูล", "ยืนยันการลบจุด/เส้นนี้?", true, () => {
-                const layer = layerStore[lid];
-                map.removeLayer(layer);
-                const row = document.getElementById('row-' + lid);
-                if(row) row.remove();
-                delete layerStore[lid];
-                saveData();
-                closeModal();
+            showModal("ลบข้อมูล", "ยืนยันการลบ?", true, () => {
+                const layer = layerStore[lid]; map.removeLayer(layer);
+                const row = document.getElementById('row-' + lid); if(row) row.remove();
+                delete layerStore[lid]; saveData(); closeModal();
             });
         }
-
         function createSimplePopup(t,d,l) { return `<div style="padding:5px;"><div style="font-weight:600;font-size:16px;">${t}</div><div style="font-size:12px;color:#666;margin:5px 0;line-height:1.4;">${d}</div><div style="color:#1a73e8;font-size:12px;">${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}</div></div>`; }
 
-        // --- 7. SUPER TABLE ---
-        let tableData = [];
-        let currentTableSubId = null;
-
+        // --- 7. TABLE ---
         function openTable(targetGroup, menuId, subId) {
             if(menuId) document.getElementById(menuId).style.display = 'none';
-            currentTableGroup = targetGroup;
-            currentTableSubId = subId; 
-            
-            let headers = new Set(['name', 'description']);
-            tableData = [];
-            
+            currentTableGroup = targetGroup; currentTableSubId = subId; 
+            let headers = new Set(['name', 'description']), tableData = [];
             Object.values(layerStore).forEach(l => {
                 if(l.feature.properties._layerName === targetGroup) {
-                    Object.keys(l.feature.properties).forEach(k => { 
-                        if(!k.startsWith('_')) headers.add(k); 
-                    });
+                    Object.keys(l.feature.properties).forEach(k => { if(!k.startsWith('_')) headers.add(k); });
                     tableData.push({ id: L.stamp(l), props: l.feature.properties });
                 }
             });
-            
             let html = `<table class="data-table"><thead><tr>`;
-            headers.forEach(h => html += `<th>${h} <i class="fa-solid fa-times col-del-btn" onclick="deleteColumn('${h}')" title="ลบคอลัมน์"></i></th>`);
+            headers.forEach(h => html += `<th>${h} <i class="fa-solid fa-times col-del-btn" onclick="deleteColumn('${h}')"></i></th>`);
             html += `<th>จัดการ</th></tr></thead><tbody>`;
-            
             tableData.forEach(row => {
                 html += `<tr>`;
                 headers.forEach(h => html += `<td contenteditable="true" onblur="updateCell(${row.id}, '${h}', this.innerText)">${row.props[h] || ''}</td>`);
                 html += `<td><i class="fa-solid fa-trash row-del-btn" onclick="deleteTableRow(${row.id})"></i></td></tr>`;
             });
             html += `</tbody></table>`;
-            
-            document.getElementById('table-content').innerHTML = html;
-            document.getElementById('table-modal').style.display = 'flex';
+            document.getElementById('table-content').innerHTML = html; document.getElementById('table-modal').style.display = 'flex';
         }
-
         function updateCell(lid, key, value) {
-            if(layerStore[lid]) {
-                layerStore[lid].feature.properties[key] = value;
-                if(key === 'name') document.getElementById('lbl-'+lid).innerHTML = `${getIcon(layerStore[lid])} ${value}`;
-            }
+            if(layerStore[lid]) { layerStore[lid].feature.properties[key] = value; saveData(); }
         }
-        
+        function addNewColumn() {
+            showInputModal("เพิ่มคอลัมน์ใหม่", "ชื่อ:", (colName) => {
+                Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === currentTableGroup) l.feature.properties[colName] = ""; });
+                saveData(); openTable(currentTableGroup, null, currentTableSubId);
+            });
+        }
+        function deleteColumn(colName) {
+            showModal("ลบคอลัมน์", `ยืนยันลบ "${colName}"?`, true, () => {
+                Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === currentTableGroup) delete l.feature.properties[colName]; });
+                saveData(); openTable(currentTableGroup, null, currentTableSubId); closeModal();
+            });
+        }
+        function deleteTableRow(lid) {
+             showModal("ลบแถว", "ยืนยัน?", true, () => {
+                const layer = layerStore[lid]; map.removeLayer(layer);
+                const row = document.getElementById('row-' + lid); if(row) row.remove();
+                delete layerStore[lid]; saveData(); openTable(currentTableGroup, null, currentTableSubId); closeModal();
+            });
+        }
         function addTableRow() {
-            if(!currentTableGroup) return alert("กรุณาเปิดตารางก่อน");
             const center = map.getCenter();
-            
-            const newMarker = createCustomMarker(center, '#1a73e8');
-            newMarker.addTo(map);
+            const newMarker = createCustomMarker(center, '#1a73e8'); newMarker.addTo(map);
             const props = { name: "จุดใหม่", description: "", _layerName: currentTableGroup };
-            
-            const lid = L.stamp(newMarker);
-            layerStore[lid] = newMarker;
+            const lid = L.stamp(newMarker); layerStore[lid] = newMarker;
             newMarker.feature = { type: "Feature", properties: props };
-            
-            const div = document.createElement('div'); 
-            div.className = 'layer-item'; 
-            div.id = 'row-' + lid;
+            const div = document.createElement('div'); div.className = 'layer-item'; div.id = 'row-' + lid;
             div.innerHTML = `<input type="checkbox" checked onchange="toggleLayer(${lid}, this.checked)"><span id="lbl-${lid}">${getIcon(newMarker)} จุดใหม่</span>`;
             div.onclick = (e) => { if(e.target.type!=='checkbox'){ panTo(newMarker); showInfo(newMarker.feature.properties, getCenter(newMarker)); newMarker.openPopup(); }};
             document.getElementById(currentTableSubId).appendChild(div);
-            
-            newMarker.bindPopup(createPopup(newMarker, "จุดใหม่"));
-            saveData();
-            
-            map.panTo(center);
-            newMarker.openPopup();
-            
-            openTable(currentTableGroup, null, currentTableSubId);
+            saveData(); openTable(currentTableGroup, null, currentTableSubId);
         }
+        function saveTableChanges() { saveData(); document.getElementById('table-modal').style.display = 'none'; }
 
-        function addNewColumn() {
-            if(!currentTableGroup) return alert("กรุณาเปิดตารางก่อน");
-            showInputModal("เพิ่มคอลัมน์ใหม่", "ชื่อคอลัมน์:", (colName) => {
-                if(colName) {
-                    Object.values(layerStore).forEach(l => {
-                        if(l.feature.properties._layerName === currentTableGroup) {
-                            l.feature.properties[colName] = "";
-                        }
-                    });
-                    saveData();
-                    openTable(currentTableGroup, null, currentTableSubId);
-                }
-            });
-        }
-
-        function deleteColumn(colName) {
-            showModal("ลบคอลัมน์", `ยืนยันการลบคอลัมน์ "${colName}"?`, true, () => {
-                Object.values(layerStore).forEach(l => {
-                    if(l.feature.properties._layerName === currentTableGroup) {
-                        delete l.feature.properties[colName];
-                    }
-                });
-                saveData();
-                openTable(currentTableGroup, null, currentTableSubId);
-                closeModal();
-            });
-        }
-
-        function deleteTableRow(lid) {
-            showModal("ลบแถว", "ยืนยันการลบข้อมูลแถวนี้?", true, () => {
-                const layer = layerStore[lid];
-                if(layer) {
-                    map.removeLayer(layer);
-                    const row = document.getElementById('row-' + lid);
-                    if(row) row.remove();
-                    delete layerStore[lid];
-                    saveData();
-                    openTable(currentTableGroup, null, currentTableSubId);
-                    closeModal();
-                }
-            });
-        }
-        
-        function saveTableChanges() {
-            saveData();
-            document.getElementById('table-modal').style.display = 'none';
-        }
-
-        // Utils
+        // --- Utils ---
         function showModal(t,d,isD,cb) { 
-            document.getElementById('modal-title').innerText=t; 
-            document.getElementById('modal-desc').innerText=d; 
+            document.getElementById('modal-title').innerText=t; document.getElementById('modal-desc').innerText=d; 
             document.getElementById('custom-modal').style.display='flex'; 
             document.getElementById('modal-confirm-btn').onclick=()=>{ cb(); closeModal(); }; 
             document.getElementById('modal-input').style.display='none'; 
         }
         function showInputModal(t,l,cb) { 
-            document.getElementById('modal-title').innerText=t; 
-            document.getElementById('modal-desc').innerText=l; 
-            document.getElementById('modal-input').value = ''; 
-            document.getElementById('modal-input').style.display='block'; 
+            document.getElementById('modal-title').innerText=t; document.getElementById('modal-desc').innerText=l; 
+            document.getElementById('modal-input').value = ''; document.getElementById('modal-input').style.display='block'; 
             document.getElementById('custom-modal').style.display='flex'; 
             document.getElementById('modal-confirm-btn').onclick=()=>{cb(document.getElementById('modal-input').value);closeModal()}; 
         }
         function closeModal() { document.getElementById('custom-modal').style.display='none'; }
         function showLoader(s) { document.getElementById('loader').style.display = s?'flex':'none'; }
-        
         function askDeleteGroup(id, menuId) { 
             if(menuId) document.getElementById(menuId).style.display='none'; 
             showModal("ลบเลเยอร์", "ยืนยัน?", true, ()=>{ 
                 const groupTitle = document.getElementById(id).querySelector('.group-title').innerText;
                 document.getElementById(id).remove(); 
-                
                 Object.values(layerStore).forEach(l=>{
-                    if(l.feature.properties._layerName === groupTitle) {
-                        map.removeLayer(l);
-                        delete layerStore[L.stamp(l)];
-                    }
+                    if(l.feature.properties._layerName === groupTitle) { map.removeLayer(l); delete layerStore[L.stamp(l)]; }
                 });
-                saveData(); 
-                closeModal(); // Ensure modal closes
+                saveData(); closeModal();
             }); 
         }
-        
-        function toggleGroup(id, el) { const d=document.getElementById(id); if(d.style.display==='none'){ d.style.display='block'; } else { d.style.display='none'; } }
-        function toggleAll(id, c) { document.getElementById(id).querySelectorAll('input').forEach(i=>{i.checked=c;i.dispatchEvent(new Event('change'))}); }
-        window.toggleLayer = (lid, c) => c ? map.addLayer(layerStore[lid]) : map.removeLayer(layerStore[lid]);
         window.toggleSize = () => document.getElementById('sidebar-right').classList.toggle('expanded');
         function getSmartName(p) { for(let k in p) if(/name|title|ชื่อ/i.test(k)) return p[k]; return Object.values(p)[0] || "วัตถุ"; }
         function getIcon(l) { return (l instanceof L.Marker)?'<i class="fa-solid fa-location-dot" style="color:#1a73e8"></i>':'<i class="fa-solid fa-route" style="color:#1a73e8"></i>'; }
@@ -966,8 +841,77 @@
         function getCenter(l) { return l.getLatLng ? l.getLatLng() : l.getBounds().getCenter(); }
         function showInfo(props, latlng) { map.panTo(latlng); let h = ""; for(let k in props) if(!k.startsWith('_')) h += `<div class="info-row"><div class="label">${k}</div><div class="value">${props[k]}</div></div>`; h += `<div class="info-row"><div class="label">พิกัด</div><div class="value">${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}</div></div>`; document.getElementById('info-container').innerHTML = h; updateSV(latlng); }
         function updateSV(latlng) { document.getElementById('sv-msg').style.display='none'; document.getElementById('sv-image').style.display='none'; document.getElementById('sv-iframe').src=`https://maps.google.com/maps?q=&layer=c&cbll=${latlng.lat},${latlng.lng}&cbp=11,0,0,0,0&output=svembed`; document.getElementById('sv-iframe').style.display='block'; }
-
         window.onload = initDashboard;
+
+        // --- SUPABASE SAVE LOGIC (Modern) ---
+        const MY_PROJECT_URL = 'https://ajegnkjhsggcsewoczim.supabase.co'; 
+        const MY_API_KEY = 'sb_publishable_yyBuBlGayLz7OD4L2WSDRQ_-dusWneS';
+        const dbClient = supabase.createClient(MY_PROJECT_URL, MY_API_KEY);
+
+        function saveProject() {
+            const modal = document.getElementById('saveModal');
+            const box = document.getElementById('saveModalBox');
+            modal.style.display = 'flex';
+            document.getElementById('saveIconContainer').innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i>';
+            document.getElementById('saveIconContainer').style.color = '#1a73e8';
+            document.getElementById('saveTitle').innerText = 'บันทึกโปรเจกต์';
+            document.getElementById('saveActions').style.display = 'flex';
+            document.getElementById('projectNameInput').style.display = 'block';
+            document.getElementById('btnConfirmSave').innerText = 'บันทึกทันที';
+            document.getElementById('btnConfirmSave').disabled = false;
+            setTimeout(() => { box.classList.add('active'); }, 10);
+            document.getElementById('projectNameInput').focus();
+        }
+
+        function closeSaveModal() {
+            const box = document.getElementById('saveModalBox');
+            box.classList.remove('active');
+            setTimeout(() => { document.getElementById('saveModal').style.display = 'none'; }, 200);
+        }
+
+        async function confirmSaveToSupabase() {
+            const nameInput = document.getElementById('projectNameInput');
+            const projectName = nameInput.value;
+            if (!projectName) { alert("กรุณาตั้งชื่อก่อนครับ"); return; }
+
+            const btn = document.getElementById('btnConfirmSave');
+            btn.innerText = "กำลังส่งข้อมูล..."; btn.disabled = true;
+
+            const mapState = { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() };
+            const layers = [];
+            if (typeof layerStore !== 'undefined') {
+                for (let id in layerStore) {
+                    const layer = layerStore[id];
+                    const gid = layer.subId || 'Uncategorized';
+                    let title = "Group " + gid;
+                    try {
+                         const el = document.getElementById(gid);
+                         if(el && el.previousElementSibling) title = el.previousElementSibling.querySelector('.group-title').innerText;
+                    } catch(e){}
+                    layers.push({ id: gid, name: title, features: layerStore[id].toGeoJSON() });
+                }
+            }
+
+            try {
+                const { data, error } = await dbClient 
+                    .from('projects')
+                    .insert([{ name: projectName, map_state: mapState, layers: layers }]);
+
+                if (error) throw error;
+
+                document.getElementById('saveIconContainer').innerHTML = '<i class="fa-solid fa-circle-check"></i>';
+                document.getElementById('saveIconContainer').style.color = '#28a745';
+                document.getElementById('saveTitle').innerText = 'บันทึกเรียบร้อย!';
+                document.getElementById('projectNameInput').style.display = 'none';
+                document.getElementById('saveActions').style.display = 'none';
+
+                setTimeout(() => { closeSaveModal(); nameInput.value = ''; }, 1500);
+
+            } catch (err) {
+                console.error(err); alert("❌ บันทึกไม่ได้: " + err.message);
+                btn.innerText = "ลองใหม่"; btn.disabled = false;
+            }
+        }
     </script>
 </body>
 </html>
