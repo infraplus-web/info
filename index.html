@@ -296,10 +296,14 @@
     <script src="https://unpkg.com/shp-write@0.3.2/shpwrite.js"></script>
 
     <script>
+        // --- 0. SUPABASE CONFIG ---
+        const MY_PROJECT_URL = 'https://ajegnkjhsggcsewoczim.supabase.co'; 
+        const MY_API_KEY = 'sb_publishable_yyBuBlGayLz7OD4L2WSDRQ_-dusWneS';
+        const dbClient = supabase.createClient(MY_PROJECT_URL, MY_API_KEY);
+
         // --- Global Variables ---
-        let map, currentProjId, layerStore = {}, clickMarker, exportTargetGroupId;
+        let map, currentProjId = null, layerStore = {}, clickMarker, exportTargetGroupId;
         let selectedSubId = null;
-        let editingLayerId = null; 
         let currentTableGroup = null;
 
         const googleRedIcon = L.icon({
@@ -307,52 +311,140 @@
             iconSize: [27, 43], iconAnchor: [13, 43], popupAnchor: [0, -40], className: 'google-marker-icon'
         });
 
-        // --- 1. DASHBOARD ---
-        function initDashboard() {
+        // --- 1. DASHBOARD & LOADING (ส่วนสำคัญที่ทำให้เปิดเครื่องอื่นได้) ---
+        async function initDashboard() {
             document.getElementById('dashboard-view').style.display='flex';
             document.getElementById('map-view').style.display='none';
-            renderProjects();
+            await renderProjectsFromCloud(); // โหลดจาก Cloud แทน Local
         }
-        function getMeta() { 
+
+        async function renderProjectsFromCloud() {
+            const grid = document.getElementById('project-grid'); 
+            grid.innerHTML = '<div style="width:100%; text-align:center; color:#666; margin-top:20px;">กำลังโหลดข้อมูลจาก Cloud...</div>';
+            
             try {
-                const data = localStorage.getItem('webgis_meta');
-                return data ? JSON.parse(data) : [];
-            } catch(e) { return []; }
-        }
-        function renderProjects() {
-            const grid = document.getElementById('project-grid'); grid.innerHTML = '';
-            const meta = getMeta();
-            if (Array.isArray(meta)) {
-                meta.reverse().forEach(p => {
+                // ดึงข้อมูลจาก Supabase
+                const { data, error } = await dbClient
+                    .from('projects')
+                    .select('id, name, created_at')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                grid.innerHTML = '';
+                if (!data || data.length === 0) {
+                    grid.innerHTML = '<div style="text-align:center; width:100%; margin-top:20px;">ยังไม่มีโปรเจกต์ (ลองกดสร้างใหม่แล้วบันทึกดูครับ)</div>';
+                    return;
+                }
+
+                data.forEach(p => {
                     const card = document.createElement('div'); card.className = 'project-card';
                     let bg = 'https://mt1.google.com/vt/lyrs=m&x=130&y=95&z=8'; 
-                    card.innerHTML = `<div class="card-delete" onclick="askDeleteProject('${p.id}', event)"><i class="fa-solid fa-trash"></i></div><div class="card-preview" style="background-image:url('${bg}')"></div><div class="card-body"><div class="card-title">${p.name}</div><div class="card-meta">${new Date(p.date).toLocaleDateString('th-TH')}</div></div>`;
-                    card.onclick = () => openProject(p.id);
+                    const dateStr = new Date(p.created_at).toLocaleDateString('th-TH');
+                    
+                    card.innerHTML = `
+                        <div class="card-delete" onclick="askDeleteProject('${p.id}', event)"><i class="fa-solid fa-trash"></i></div>
+                        <div class="card-preview" style="background-image:url('${bg}')"></div>
+                        <div class="card-body">
+                            <div class="card-title">${p.name}</div>
+                            <div class="card-meta">วันที่: ${dateStr}</div>
+                        </div>`;
+                    card.onclick = () => loadProjectFromCloud(p.id);
                     grid.appendChild(card);
                 });
+
+            } catch (err) {
+                console.error(err);
+                grid.innerHTML = '<div style="color:red; text-align:center;">โหลดไม่สำเร็จ: ' + err.message + '</div>';
             }
         }
+
         function createNewProject() {
-            try {
-                const id = 'proj_' + Date.now();
-                const meta = getMeta();
-                meta.push({ id: id, name: "แผนที่ไม่มีชื่อ", date: Date.now() });
-                localStorage.setItem('webgis_meta', JSON.stringify(meta));
-                localStorage.setItem('webgis_data_' + id, JSON.stringify([]));
-                openProject(id);
-            } catch(e) { alert("เกิดข้อผิดพลาดในการสร้างโปรเจค: " + e); }
+            currentProjId = null;
+            openMapEditor([], "แผนที่ไม่มีชื่อ");
         }
+
         function askDeleteProject(id, e) {
             e.stopPropagation();
-            showModal("ลบแผนที่", "ยืนยันการลบ?", true, () => {
-                let meta = getMeta().filter(p => p.id !== id);
-                localStorage.setItem('webgis_meta', JSON.stringify(meta));
-                localStorage.removeItem('webgis_data_' + id);
-                renderProjects();
+            showModal("ลบแผนที่", "ยืนยันการลบจาก Cloud?", true, async () => {
+                showLoader(true);
+                const { error } = await dbClient.from('projects').delete().eq('id', id);
+                showLoader(false);
+                if(error) alert("ลบไม่ได้: " + error.message);
+                else { closeModal(); renderProjectsFromCloud(); }
             });
         }
 
-        // --- 2. MAP CORE ---
+        // --- 2. LOAD & OPEN MAP ---
+        async function loadProjectFromCloud(id) {
+            showLoader(true);
+            try {
+                const { data, error } = await dbClient.from('projects').select('*').eq('id', id).single();
+                if (error) throw error;
+                if (!data) throw new Error("ไม่พบข้อมูล");
+
+                currentProjId = data.id;
+                
+                // แปลงข้อมูล Layer กลับเป็นรูปแบบที่ Map เข้าใจ
+                const geojsonForMap = [];
+                const layers = data.layers || [];
+                layers.forEach(group => {
+                    const features = group.features; 
+                    if(features) {
+                        const feats = Array.isArray(features) ? features : (features.features || [features]);
+                        feats.forEach(f => {
+                            if(!f.properties) f.properties = {};
+                            f.properties._layerName = group.name;
+                            geojsonForMap.push(f);
+                        });
+                    }
+                });
+
+                openMapEditor(geojsonForMap, data.name, data.map_state);
+
+            } catch (err) {
+                alert("โหลดไม่ได้: " + err.message);
+                showLoader(false);
+            }
+        }
+
+        function openMapEditor(dataFeatures, projName, mapState) {
+            initMap();
+            // Reset Map
+            Object.values(layerStore).forEach(l => map.removeLayer(l)); 
+            layerStore = {};
+            if(clickMarker) map.removeLayer(clickMarker);
+            document.getElementById('layer-list').innerHTML = '';
+            selectedSubId = null;
+
+            document.getElementById('proj-name').value = projName;
+
+            if(mapState && mapState.lat) map.setView([mapState.lat, mapState.lng], mapState.zoom);
+            else map.setView([13.7563, 100.5018], 11);
+
+            // Draw Layers
+            if(dataFeatures.length > 0) {
+                const groups = {};
+                dataFeatures.forEach(f => {
+                    const g = f.properties._layerName || "นำเข้า";
+                    if(!groups[g]) groups[g] = []; groups[g].push(f);
+                });
+                for(let g in groups) {
+                    const subId = createGroupUI(g);
+                    L.geoJSON(groups[g], { 
+                        onEachFeature: (f,l) => setupLayer(l, subId, f.properties),
+                        pointToLayer: function (feature, latlng) { return createCustomMarker(latlng, feature.properties._color || '#1a73e8'); },
+                        style: (f) => ({ color: f.properties._color || '#3388ff', fillColor: f.properties._color || '#3388ff' })
+                    });
+                }
+            } else { createGroupUI("เลเยอร์ 1"); }
+
+            document.getElementById('dashboard-view').style.display = 'none';
+            document.getElementById('map-view').style.display = 'flex';
+            setTimeout(() => { map.invalidateSize(); showLoader(false); }, 500);
+        }
+
+        // --- 3. MAP CORE (Standard) ---
         function initMap() {
             if(map) return;
             map = L.map('map', { zoomControl: false }).setView([13.7563, 100.5018], 11);
@@ -365,89 +457,26 @@
             map.addControl(new Ctl());
             map.on('locationfound', e => { handleMapClick(e.latlng, "ตำแหน่งของคุณ"); });
 
-            // Base Layers
             const gStreet = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3']}).addTo(map);
             const gHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3']});
             const osm = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
             const esri = L.esri.basemapLayer('Imagery');
             
-            L.control.layers({ 
-                "Google ถนน": gStreet, "Google ดาวเทียม": gHybrid, "OpenStreetMap": osm, "Esri Imagery": esri
-            }, null, { position: 'bottomright' }).addTo(map);
+            L.control.layers({ "Google ถนน": gStreet, "Google ดาวเทียม": gHybrid, "OpenStreetMap": osm, "Esri Imagery": esri }, null, { position: 'bottomright' }).addTo(map);
 
             map.pm.addControls({ position: 'topleft', drawCircle:true, drawCircleMarker:false });
             L.control.polylineMeasure({ position: 'topleft', unit: 'metric' }).addTo(map);
 
             map.on('pm:create', e => handleDraw(e.layer));
             map.on('pm:remove', e => handleDelete(e.layer));
-            map.on('pm:edit', saveData); map.on('pm:dragend', saveData);
             map.on('click', e => { if(!map.pm.globalRemovalModeEnabled()) handleMapClick(e.latlng); });
         }
 
-        function openProject(id) {
-            showLoader(true); currentProjId = id; initMap();
-            Object.values(layerStore).forEach(l => map.removeLayer(l)); layerStore = {};
-            if(clickMarker) map.removeLayer(clickMarker);
-            document.getElementById('layer-list').innerHTML = '';
-            selectedSubId = null;
-            
-            const meta = getMeta().find(p => p.id === id);
-            document.getElementById('proj-name').value = meta.name;
-
-            setTimeout(() => {
-                const data = JSON.parse(localStorage.getItem('webgis_data_' + id) || '[]');
-                if(data.length) {
-                    const groups = {};
-                    data.forEach(f => {
-                        const g = f.properties._layerName || "นำเข้า";
-                        if(!groups[g]) groups[g] = []; groups[g].push(f);
-                    });
-                    for(let g in groups) {
-                        const subId = createGroupUI(g);
-                        L.geoJSON(groups[g], { 
-                            onEachFeature: (f,l) => setupLayer(l, subId, f.properties),
-                            pointToLayer: function (feature, latlng) {
-                                return createCustomMarker(latlng, feature.properties._color || '#1a73e8');
-                            },
-                            style: (f) => ({ color: f.properties._color || '#3388ff', fillColor: f.properties._color || '#3388ff' })
-                        });
-                    }
-                    const grp = L.featureGroup(Object.values(layerStore));
-                    if(grp.getLayers().length) map.fitBounds(grp.getBounds());
-                } else createGroupUI("เลเยอร์ 1");
-                
-                document.getElementById('dashboard-view').style.display = 'none';
-                document.getElementById('map-view').style.display = 'flex';
-                map.invalidateSize(); showLoader(false);
-            }, 500);
+        function saveAndExit() { 
+             initDashboard(); 
         }
 
-        function saveAndExit() { saveData(); initDashboard(); }
-        function saveData() {
-            if(!currentProjId) return;
-            const geojson = [];
-            document.querySelectorAll('.layer-group').forEach(gDiv => {
-                const gName = gDiv.querySelector('.group-title').innerText;
-                gDiv.querySelectorAll('.layer-item').forEach(item => {
-                    const layer = layerStore[item.id.replace('row-', '')];
-                    if(layer) {
-                        const j = layer.toGeoJSON();
-                        j.properties = layer.feature.properties;
-                        j.properties._layerName = gName;
-                        geojson.push(j);
-                    }
-                });
-            });
-            localStorage.setItem('webgis_data_' + currentProjId, JSON.stringify(geojson));
-            let meta = getMeta(); 
-            let p = meta.find(p=>p.id===currentProjId);
-            if(p) {
-                p.name = document.getElementById('proj-name').value;
-                localStorage.setItem('webgis_meta', JSON.stringify(meta));
-            }
-        }
-
-        // --- 3. LAYERS ---
+        // --- 4. LAYERS UI ---
         function createGroupUI(name) {
             const id = 'g-' + Date.now() + Math.random().toString(16).slice(2);
             const subId = 'sub-' + id;
@@ -457,9 +486,7 @@
                     <div class="group-toggle-icon" onclick="event.stopPropagation(); toggleSubItems('${subId}', this)">▼</div>
                     <input type="checkbox" checked onclick="event.stopPropagation(); toggleAll('${subId}', this.checked)" style="margin-right:10px; cursor:pointer;">
                     <span class="group-title">${name}</span>
-                    <div class="group-actions">
-                         <div class="menu-dots" onclick="event.stopPropagation(); toggleMenu('${id}-menu')"><i class="fa-solid fa-ellipsis-vertical"></i></div>
-                    </div>
+                    <div class="group-actions"><div class="menu-dots" onclick="event.stopPropagation(); toggleMenu('${id}-menu')"><i class="fa-solid fa-ellipsis-vertical"></i></div></div>
                     <div id="${id}-menu" class="dropdown-menu">
                         <div class="dropdown-item" onclick="importToLayer('${subId}', '${id}-menu')"><i class="fa-solid fa-upload"></i> นำเข้าข้อมูล</div>
                         <div class="dropdown-item" onclick="openTable('${name}', '${id}-menu', '${subId}')"><i class="fa-solid fa-table"></i> ดูตารางข้อมูล</div>
@@ -472,44 +499,13 @@
             selectLayerGroup(subId, div.querySelector('.group-header'));
             return subId;
         }
+        function toggleSubItems(subId, iconEl) { const sub = document.getElementById(subId); if (sub.style.display === 'none') { sub.style.display = 'block'; iconEl.innerText = '▼'; } else { sub.style.display = 'none'; iconEl.innerText = '▶'; } }
+        function toggleMenu(menuId) { const menu = document.getElementById(menuId); const isVisible = menu.style.display === 'block'; document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none'); if (!isVisible) menu.style.display = 'block'; }
+        document.addEventListener('click', function(e) { if (!e.target.closest('.group-header')) document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none'); });
+        function selectLayerGroup(subId, headerElement) { document.querySelectorAll('.group-header').forEach(el => el.classList.remove('active-target')); headerElement.classList.add('active-target'); selectedSubId = subId; }
+        function toggleAll(subId, checked) { document.getElementById(subId).querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = checked; cb.dispatchEvent(new Event('change')); }); }
 
-        function toggleSubItems(subId, iconEl) {
-            const sub = document.getElementById(subId);
-            if (sub.style.display === 'none') {
-                sub.style.display = 'block';
-                iconEl.innerText = '▼';
-            } else {
-                sub.style.display = 'none';
-                iconEl.innerText = '▶';
-            }
-        }
-
-        function toggleMenu(menuId) {
-            const menu = document.getElementById(menuId);
-            const isVisible = menu.style.display === 'block';
-            document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
-            if (!isVisible) menu.style.display = 'block';
-        }
-
-        document.addEventListener('click', function(e) {
-            if (!e.target.closest('.group-header')) {
-                document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none');
-            }
-        });
-
-        function selectLayerGroup(subId, headerElement) {
-            document.querySelectorAll('.group-header').forEach(el => el.classList.remove('active-target'));
-            headerElement.classList.add('active-target');
-            selectedSubId = subId;
-        }
-
-        function toggleAll(subId, checked) {
-            document.getElementById(subId).querySelectorAll('input[type="checkbox"]').forEach(cb => {
-                cb.checked = checked;
-                cb.dispatchEvent(new Event('change'));
-            });
-        }
-
+        // --- 5. MARKER & HELPERS ---
         function createCustomMarker(latlng, color) {
             const svgIcon = L.divIcon({
                 className: 'custom-div-icon',
@@ -518,322 +514,118 @@
             });
             return L.marker(latlng, { icon: svgIcon });
         }
-
         function setupLayer(layer, subId, props) {
             if (layer instanceof L.Marker) {
-               const latlng = layer.getLatLng();
-               const color = props._color || '#1a73e8';
-               if (!(layer.options.icon && layer.options.icon.options.className === 'custom-div-icon')) {
-                   layer = createCustomMarker(latlng, color);
-               }
+               const latlng = layer.getLatLng(); const color = props._color || '#1a73e8';
+               if (!(layer.options.icon && layer.options.icon.options.className === 'custom-div-icon')) { layer = createCustomMarker(latlng, color); }
             }
-            
-            layer.addTo(map);
-            const lid = L.stamp(layer);
-            layerStore[lid] = layer;
-            layer.subId = subId;
+            layer.addTo(map); const lid = L.stamp(layer); layerStore[lid] = layer; layer.subId = subId;
             layer.feature = layer.feature || { type: "Feature", properties: props || {} };
-            
-            if(layer.bindTooltip) {
-                layer.bindTooltip(props.name || "ไม่มีชื่อ", { direction: 'top', offset: [0,-36] });
-            }
-            if(layer instanceof L.Path && props._color) {
-                layer.setStyle({ color: props._color, fillColor: props._color });
-            }
-
+            if(layer.bindTooltip) layer.bindTooltip(props.name || "ไม่มีชื่อ", { direction: 'top', offset: [0,-36] });
+            if(layer instanceof L.Path && props._color) layer.setStyle({ color: props._color, fillColor: props._color });
             const name = getSmartName(layer.feature.properties);
             const div = document.createElement('div'); div.className = 'layer-item'; div.id = 'row-' + lid;
             div.innerHTML = `<input type="checkbox" checked onchange="toggleLayer(${lid}, this.checked)"><span id="lbl-${lid}">${getIcon(layer)} ${name}</span>`;
             div.onclick = (e) => { if(e.target.type!=='checkbox'){ panTo(layer); showInfo(layer.feature.properties, getCenter(layer)); layer.openPopup(); }};
             document.getElementById(subId).appendChild(div);
-
             layer.bindPopup(createPopup(layer, name));
             layer.on('click', e => { if(!map.pm.globalRemovalModeEnabled()){ L.DomEvent.stopPropagation(e); showInfo(layer.feature.properties, e.latlng || getCenter(layer)); }});
         }
-
-        window.toggleLayer = function(lid, checked) {
-            if (checked) map.addLayer(layerStore[lid]); else map.removeLayer(layerStore[lid]);
-        };
-
+        window.toggleLayer = function(lid, checked) { if (checked) map.addLayer(layerStore[lid]); else map.removeLayer(layerStore[lid]); };
         function handleDraw(layer) {
             let subId = selectedSubId || (document.querySelectorAll('.sub-items').length ? document.querySelectorAll('.sub-items')[0].id : createGroupUI("เลเยอร์ 1"));
-            if (layer instanceof L.Marker) {
-                const latlng = layer.getLatLng();
-                map.removeLayer(layer);
-                layer = createCustomMarker(latlng, '#1a73e8');
-                layer.addTo(map);
-            }
+            if (layer instanceof L.Marker) { const latlng = layer.getLatLng(); map.removeLayer(layer); layer = createCustomMarker(latlng, '#1a73e8'); layer.addTo(map); }
             setupLayer(layer, subId, { name: "จุดใหม่", description: "" });
-            saveData(); setTimeout(()=> {layer.openPopup(); enableEdit(L.stamp(layer));}, 200);
+            setTimeout(()=> {layer.openPopup(); enableEdit(L.stamp(layer));}, 200);
         }
-        function handleDelete(layer) {
-            const row = document.getElementById('row-' + L.stamp(layer));
-            if(row) row.remove(); delete layerStore[L.stamp(layer)]; saveData();
-        }
+        function handleDelete(layer) { const row = document.getElementById('row-' + L.stamp(layer)); if(row) row.remove(); delete layerStore[L.stamp(layer)]; }
 
-        // --- 4. SMART PLACE NAMES & SEARCH ---
+        // --- 6. SEARCH & UTILS ---
         function handleMapClick(latlng, manualName) {
             if(clickMarker) map.removeLayer(clickMarker);
-            clickMarker = createCustomMarker(latlng, '#d93025');
-            clickMarker.addTo(map);
-            map.panTo(latlng);
-
-            if(manualName) {
-                clickMarker.bindPopup(createSimplePopup(manualName, manualName, latlng)).openPopup();
-                showInfo({"ที่อยู่": manualName}, latlng);
-                return;
-            }
-
+            clickMarker = createCustomMarker(latlng, '#d93025'); clickMarker.addTo(map); map.panTo(latlng);
+            if(manualName) { clickMarker.bindPopup(createSimplePopup(manualName, manualName, latlng)).openPopup(); showInfo({"ที่อยู่": manualName}, latlng); return; }
             fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latlng.lat}&lon=${latlng.lon}&accept-language=th&addressdetails=1&zoom=18`)
             .then(r=>r.json()).then(d=>{
                 let name = "ตำแหน่งที่เลือก", detail = d.display_name || "";
                 if (d.name && d.name.length > 0) name = d.name; 
-                else if(d.address) {
-                    const a = d.address;
-                    name = a.amenity || a.shop || a.tourism || a.building || a.office || a.leisure || a.natural;
-                    if(!name) name = a.road ? (a.soi ? a.road + " " + a.soi : a.road) : (a.village || a.suburb);
-                }
+                else if(d.address) { const a = d.address; name = a.amenity || a.shop || a.tourism || a.building || a.office || a.leisure || a.natural; if(!name) name = a.road ? (a.soi ? a.road + " " + a.soi : a.road) : (a.village || a.suburb); }
                 if(!name || name === "undefined") name = detail.split(',')[0];
-                clickMarker.bindPopup(createSimplePopup(name, detail, latlng)).openPopup();
-                showInfo({"สถานที่": name, "ที่อยู่": detail}, latlng);
+                clickMarker.bindPopup(createSimplePopup(name, detail, latlng)).openPopup(); showInfo({"สถานที่": name, "ที่อยู่": detail}, latlng);
             }).catch(() => {});
         }
-
         function searchLoc() {
-            const q = document.getElementById('search-inp').value;
-            if(!q) return; showLoader(true);
+            const q = document.getElementById('search-inp').value; if(!q) return; showLoader(true);
             fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${q}&accept-language=th&addressdetails=1`)
             .then(r=>r.json()).then(d=>{
-                showLoader(false);
-                if(d.length) {
-                    const lat=parseFloat(d[0].lat), lon=parseFloat(d[0].lon);
-                    map.setView([lat,lon], 16);
-                    handleMapClick({lat:lat, lon:lon}, d[0].display_name.split(',')[0]);
-                } else showModal("ไม่พบ","ไม่พบสถานที่",false,()=>{});
+                showLoader(false); if(d.length) { const lat=parseFloat(d[0].lat), lon=parseFloat(d[0].lon); map.setView([lat,lon], 16); handleMapClick({lat:lat, lon:lon}, d[0].display_name.split(',')[0]); } else showModal("ไม่พบ","ไม่พบสถานที่",false,()=>{});
             }).catch(()=>{showLoader(false)});
         }
         document.getElementById('search-inp').addEventListener('keypress', function (e) { if (e.key === 'Enter') searchLoc(); });
 
-        // --- 5. IMPORT/EXPORT ---
+        // --- 7. IMPORT/EXPORT ---
         function processFile(file, subId) {
             if(!file) return; showLoader(true);
-            const fileName = file.name;
-            const ext = fileName.split('.').pop().toLowerCase();
+            const fileName = file.name; const ext = fileName.split('.').pop().toLowerCase();
             const targetId = subId || createGroupUI(fileName.replace(/\.[^/.]+$/, ""));
-
-            if (ext === 'zip') {
-                const r = new FileReader(); 
-                r.onload = function(b) { 
-                    shp(b.target.result).then(function(geojson){
-                        if(Array.isArray(geojson)) { geojson.forEach(g => finishImport(g, targetId)); } 
-                        else { finishImport(geojson, targetId); }
-                    }).catch(err => { alert("Zip Error"); showLoader(false); });
-                }
-                r.readAsArrayBuffer(file);
-            } 
-            else if (['kml', 'json', 'geojson'].includes(ext)) {
-                const r = new FileReader(); r.onload=t=>{ 
-                    try { 
-                        let g = file.name.endsWith('.kml') ? toGeoJSON.kml(new DOMParser().parseFromString(t.target.result,'text/xml')) : JSON.parse(t.target.result);
-                        finishImport(g, targetId);
-                    } catch(e){ alert("File Error: " + e); showLoader(false); }
-                }; r.readAsText(file);
-            } 
+            if (ext === 'zip') { const r = new FileReader(); r.onload = function(b) { shp(b.target.result).then(function(geojson){ if(Array.isArray(geojson)) { geojson.forEach(g => finishImport(g, targetId)); } else { finishImport(geojson, targetId); } }).catch(err => { alert("Zip Error"); showLoader(false); }); }; r.readAsArrayBuffer(file);
+            } else if (['kml', 'json', 'geojson'].includes(ext)) { const r = new FileReader(); r.onload=t=>{ try { let g = file.name.endsWith('.kml') ? toGeoJSON.kml(new DOMParser().parseFromString(t.target.result,'text/xml')) : JSON.parse(t.target.result); finishImport(g, targetId); } catch(e){ alert("File Error: " + e); showLoader(false); } }; r.readAsText(file); } 
             document.getElementById('fileInput').value = ''; document.getElementById('layerFileInput').value = '';
         }
         document.getElementById('fileInput').onchange = function(e) { processFile(e.target.files[0], null); };
         document.getElementById('layerFileInput').onchange = function(e) { processFile(e.target.files[0], selectedSubId); };
-
-        function importToLayer(subId, menuId) {
-            selectedSubId = subId;
-            document.getElementById(menuId).style.display = 'none'; 
-            document.getElementById('layerFileInput').click();
-        }
+        function importToLayer(subId, menuId) { selectedSubId = subId; document.getElementById(menuId).style.display = 'none'; document.getElementById('layerFileInput').click(); }
         function finishImport(g, subId) {
-            const grp = L.featureGroup();
-            const features = Array.isArray(g) ? g : (g.features || [g]); 
-            L.geoJSON(features, { 
-                pointToLayer: function (feature, latlng) { return createCustomMarker(latlng, '#1a73e8'); },
-                onEachFeature:(f,l)=>{
-                    f.properties._layerName = document.getElementById(subId).previousElementSibling.querySelector('.group-title').innerText;
-                    setupLayer(l,subId,f.properties); 
-                    grp.addLayer(l);
-                }
-            });
-            if(grp.getLayers().length) map.fitBounds(grp.getBounds());
-            saveData(); showLoader(false);
+            const grp = L.featureGroup(); const features = Array.isArray(g) ? g : (g.features || [g]); 
+            L.geoJSON(features, { pointToLayer: function (feature, latlng) { return createCustomMarker(latlng, '#1a73e8'); }, onEachFeature:(f,l)=>{ f.properties._layerName = document.getElementById(subId).previousElementSibling.querySelector('.group-title').innerText; setupLayer(l,subId,f.properties); grp.addLayer(l); } });
+            if(grp.getLayers().length) map.fitBounds(grp.getBounds()); showLoader(false);
         }
-        function exportGroup(groupName, menuId) { 
-            if(menuId) document.getElementById(menuId).style.display = 'none';
-            exportTargetGroupId = groupName; document.getElementById('export-modal').style.display='flex'; 
-        }
+        function exportGroup(groupName, menuId) { if(menuId) document.getElementById(menuId).style.display = 'none'; exportTargetGroupId = groupName; document.getElementById('export-modal').style.display='flex'; }
         function triggerExport(format) {
-            let data = [];
-            Object.values(layerStore).forEach(l => {
-                if(l.feature.properties._layerName === exportTargetGroupId) {
-                    let f = l.toGeoJSON(); f.properties = l.feature.properties; data.push(f);
-                }
-            });
+            let data = []; Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === exportTargetGroupId) { let f = l.toGeoJSON(); f.properties = l.feature.properties; data.push(f); } });
             if(!data.length) return alert("ไม่มีข้อมูล");
-            const name = exportTargetGroupId || "data";
-            const geojson = {type:'FeatureCollection', features:data};
+            const name = exportTargetGroupId || "data"; const geojson = {type:'FeatureCollection', features:data};
             let content, ext, type;
-
-            if(format === 'shapefile') {
-                try {
-                    const options = { folder: name, types: { point: name+'_pt', polygon: name+'_poly', line: name+'_line' } };
-                    shpwrite.download(geojson, options); document.getElementById('export-modal').style.display='none'; return; 
-                } catch(e) { return alert("Export Error"); }
-            } else if(format === 'csv') {
-                const rows = data.map(f => {
-                    let r = { ...f.properties };
-                    if(f.geometry.type === 'Point') { r.lat = f.geometry.coordinates[1]; r.lng = f.geometry.coordinates[0]; }
-                    return r;
-                });
-                content = Papa.unparse(rows); ext = 'csv'; type = 'text/csv;charset=utf-8;';
-            } else if(format === 'kml') {
-                content = tokml(geojson); ext = 'kml'; type = 'application/vnd.google-earth.kml+xml;charset=utf-8';
-            } else {
-                content = JSON.stringify(geojson); ext = 'geojson'; type = 'application/json;charset=utf-8';
-            }
-            const blob = new Blob(["\uFEFF"+content], {type:type});
-            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name+'.'+ext; a.click();
-            document.getElementById('export-modal').style.display='none';
+            if(format === 'shapefile') { try { const options = { folder: name, types: { point: name+'_pt', polygon: name+'_poly', line: name+'_line' } }; shpwrite.download(geojson, options); document.getElementById('export-modal').style.display='none'; return; } catch(e) { return alert("Export Error"); } } 
+            else if(format === 'csv') { const rows = data.map(f => { let r = { ...f.properties }; if(f.geometry.type === 'Point') { r.lat = f.geometry.coordinates[1]; r.lng = f.geometry.coordinates[0]; } return r; }); content = Papa.unparse(rows); ext = 'csv'; type = 'text/csv;charset=utf-8;'; } 
+            else if(format === 'kml') { content = tokml(geojson); ext = 'kml'; type = 'application/vnd.google-earth.kml+xml;charset=utf-8'; } 
+            else { content = JSON.stringify(geojson); ext = 'geojson'; type = 'application/json;charset=utf-8'; }
+            const blob = new Blob(["\uFEFF"+content], {type:type}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name+'.'+ext; a.click(); document.getElementById('export-modal').style.display='none';
         }
 
-        // --- 6. POPUP ---
+        // --- 8. POPUP & EDIT ---
         function createPopup(layer, name) {
-            const lid = L.stamp(layer);
-            const desc = layer.feature.properties.description || "";
-            return `
-                <div class="popup-header"><input class="popup-title-inp" id="pt-${lid}" value="${name}" readonly></div>
-                <div class="popup-body">
-                    <textarea class="popup-desc-inp" id="pd-${lid}" readonly placeholder="เพิ่มคำอธิบาย...">${desc}</textarea>
-                    <div class="color-picker-row" id="cp-${lid}" style="display:none;">
-                        <div class="color-circle" style="background:#1a73e8" onclick="changeColor(${lid}, '#1a73e8')"></div>
-                        <div class="color-circle" style="background:#d93025" onclick="changeColor(${lid}, '#d93025')"></div>
-                        <div class="color-circle" style="background:#f9ab00" onclick="changeColor(${lid}, '#f9ab00')"></div>
-                        <div class="color-circle" style="background:#1e8e3e" onclick="changeColor(${lid}, '#1e8e3e')"></div>
-                        <input type="color" onchange="changeColor(${lid}, this.value)" style="width:30px; border:none; background:none; cursor:pointer;">
-                    </div>
-                </div>
-                <div class="popup-footer">
-                    <i class="fa-solid fa-pen pop-icon" title="แก้ไข" onclick="enableEdit(${lid})"></i>
-                    <i class="fa-solid fa-trash pop-icon del" title="ลบ" onclick="deleteFeature(${lid})"></i>
-                    <i class="fa-solid fa-check pop-icon" id="ps-${lid}" style="display:none; color:#1e8e3e" onclick="saveEdit(${lid})"></i>
-                </div>`;
+            const lid = L.stamp(layer); const desc = layer.feature.properties.description || "";
+            return `<div class="popup-header"><input class="popup-title-inp" id="pt-${lid}" value="${name}" readonly></div><div class="popup-body"><textarea class="popup-desc-inp" id="pd-${lid}" readonly placeholder="เพิ่มคำอธิบาย...">${desc}</textarea><div class="color-picker-row" id="cp-${lid}" style="display:none;"><div class="color-circle" style="background:#1a73e8" onclick="changeColor(${lid}, '#1a73e8')"></div><div class="color-circle" style="background:#d93025" onclick="changeColor(${lid}, '#d93025')"></div><div class="color-circle" style="background:#f9ab00" onclick="changeColor(${lid}, '#f9ab00')"></div><div class="color-circle" style="background:#1e8e3e" onclick="changeColor(${lid}, '#1e8e3e')"></div><input type="color" onchange="changeColor(${lid}, this.value)" style="width:30px; border:none; background:none; cursor:pointer;"></div></div><div class="popup-footer"><i class="fa-solid fa-pen pop-icon" title="แก้ไข" onclick="enableEdit(${lid})"></i><i class="fa-solid fa-trash pop-icon del" title="ลบ" onclick="deleteFeature(${lid})"></i><i class="fa-solid fa-check pop-icon" id="ps-${lid}" style="display:none; color:#1e8e3e" onclick="saveEdit(${lid})"></i></div>`;
         }
-        function enableEdit(lid) { 
-            document.getElementById(`pt-${lid}`).removeAttribute('readonly'); document.getElementById(`pt-${lid}`).focus(); 
-            document.getElementById(`pd-${lid}`).removeAttribute('readonly'); 
-            document.getElementById(`ps-${lid}`).style.display='inline'; document.getElementById(`cp-${lid}`).style.display='flex'; 
-        }
-        function changeColor(lid, c) { 
-            const l = layerStore[lid]; 
-            if(l instanceof L.Marker && l.options.icon.options.className === 'custom-div-icon') {
-                l.setIcon(createCustomMarker(l.getLatLng(), c).options.icon);
-            } else if(l.setStyle) { l.setStyle({color:c, fillColor:c}); }
-            l.feature.properties._color = c; 
-        }
-        function saveEdit(lid) { 
-            const l = layerStore[lid], n = document.getElementById(`pt-${lid}`).value; 
-            l.feature.properties.name = n; l.feature.properties.description = document.getElementById(`pd-${lid}`).value; 
-            document.getElementById(`lbl-${lid}`).innerHTML = `${getIcon(l)} ${n}`; 
-            l.closePopup(); l.unbindPopup(); l.bindPopup(createPopup(l, n)); l.openPopup(); saveData(); 
-        }
-        function deleteFeature(lid) {
-            showModal("ลบข้อมูล", "ยืนยันการลบ?", true, () => {
-                const layer = layerStore[lid]; map.removeLayer(layer);
-                const row = document.getElementById('row-' + lid); if(row) row.remove();
-                delete layerStore[lid]; saveData(); closeModal();
-            });
-        }
+        function enableEdit(lid) { document.getElementById(`pt-${lid}`).removeAttribute('readonly'); document.getElementById(`pt-${lid}`).focus(); document.getElementById(`pd-${lid}`).removeAttribute('readonly'); document.getElementById(`ps-${lid}`).style.display='inline'; document.getElementById(`cp-${lid}`).style.display='flex'; }
+        function changeColor(lid, c) { const l = layerStore[lid]; if(l instanceof L.Marker && l.options.icon.options.className === 'custom-div-icon') { l.setIcon(createCustomMarker(l.getLatLng(), c).options.icon); } else if(l.setStyle) { l.setStyle({color:c, fillColor:c}); } l.feature.properties._color = c; }
+        function saveEdit(lid) { const l = layerStore[lid], n = document.getElementById(`pt-${lid}`).value; l.feature.properties.name = n; l.feature.properties.description = document.getElementById(`pd-${lid}`).value; document.getElementById(`lbl-${lid}`).innerHTML = `${getIcon(l)} ${n}`; l.closePopup(); l.unbindPopup(); l.bindPopup(createPopup(l, n)); l.openPopup(); }
+        function deleteFeature(lid) { showModal("ลบข้อมูล", "ยืนยันการลบ?", true, () => { const layer = layerStore[lid]; map.removeLayer(layer); const row = document.getElementById('row-' + lid); if(row) row.remove(); delete layerStore[lid]; closeModal(); }); }
         function createSimplePopup(t,d,l) { return `<div style="padding:5px;"><div style="font-weight:600;font-size:16px;">${t}</div><div style="font-size:12px;color:#666;margin:5px 0;line-height:1.4;">${d}</div><div style="color:#1a73e8;font-size:12px;">${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}</div></div>`; }
 
-        // --- 7. TABLE ---
+        // --- 9. TABLE ---
         function openTable(targetGroup, menuId, subId) {
-            if(menuId) document.getElementById(menuId).style.display = 'none';
-            currentTableGroup = targetGroup; currentTableSubId = subId; 
+            if(menuId) document.getElementById(menuId).style.display = 'none'; currentTableGroup = targetGroup; currentTableSubId = subId; 
             let headers = new Set(['name', 'description']), tableData = [];
-            Object.values(layerStore).forEach(l => {
-                if(l.feature.properties._layerName === targetGroup) {
-                    Object.keys(l.feature.properties).forEach(k => { if(!k.startsWith('_')) headers.add(k); });
-                    tableData.push({ id: L.stamp(l), props: l.feature.properties });
-                }
-            });
-            let html = `<table class="data-table"><thead><tr>`;
-            headers.forEach(h => html += `<th>${h} <i class="fa-solid fa-times col-del-btn" onclick="deleteColumn('${h}')"></i></th>`);
-            html += `<th>จัดการ</th></tr></thead><tbody>`;
-            tableData.forEach(row => {
-                html += `<tr>`;
-                headers.forEach(h => html += `<td contenteditable="true" onblur="updateCell(${row.id}, '${h}', this.innerText)">${row.props[h] || ''}</td>`);
-                html += `<td><i class="fa-solid fa-trash row-del-btn" onclick="deleteTableRow(${row.id})"></i></td></tr>`;
-            });
-            html += `</tbody></table>`;
-            document.getElementById('table-content').innerHTML = html; document.getElementById('table-modal').style.display = 'flex';
+            Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === targetGroup) { Object.keys(l.feature.properties).forEach(k => { if(!k.startsWith('_')) headers.add(k); }); tableData.push({ id: L.stamp(l), props: l.feature.properties }); } });
+            let html = `<table class="data-table"><thead><tr>`; headers.forEach(h => html += `<th>${h} <i class="fa-solid fa-times col-del-btn" onclick="deleteColumn('${h}')"></i></th>`); html += `<th>จัดการ</th></tr></thead><tbody>`;
+            tableData.forEach(row => { html += `<tr>`; headers.forEach(h => html += `<td contenteditable="true" onblur="updateCell(${row.id}, '${h}', this.innerText)">${row.props[h] || ''}</td>`); html += `<td><i class="fa-solid fa-trash row-del-btn" onclick="deleteTableRow(${row.id})"></i></td></tr>`; });
+            html += `</tbody></table>`; document.getElementById('table-content').innerHTML = html; document.getElementById('table-modal').style.display = 'flex';
         }
-        function updateCell(lid, key, value) {
-            if(layerStore[lid]) { layerStore[lid].feature.properties[key] = value; saveData(); }
-        }
-        function addNewColumn() {
-            showInputModal("เพิ่มคอลัมน์ใหม่", "ชื่อ:", (colName) => {
-                Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === currentTableGroup) l.feature.properties[colName] = ""; });
-                saveData(); openTable(currentTableGroup, null, currentTableSubId);
-            });
-        }
-        function deleteColumn(colName) {
-            showModal("ลบคอลัมน์", `ยืนยันลบ "${colName}"?`, true, () => {
-                Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === currentTableGroup) delete l.feature.properties[colName]; });
-                saveData(); openTable(currentTableGroup, null, currentTableSubId); closeModal();
-            });
-        }
-        function deleteTableRow(lid) {
-             showModal("ลบแถว", "ยืนยัน?", true, () => {
-                const layer = layerStore[lid]; map.removeLayer(layer);
-                const row = document.getElementById('row-' + lid); if(row) row.remove();
-                delete layerStore[lid]; saveData(); openTable(currentTableGroup, null, currentTableSubId); closeModal();
-            });
-        }
-        function addTableRow() {
-            const center = map.getCenter();
-            const newMarker = createCustomMarker(center, '#1a73e8'); newMarker.addTo(map);
-            const props = { name: "จุดใหม่", description: "", _layerName: currentTableGroup };
-            const lid = L.stamp(newMarker); layerStore[lid] = newMarker;
-            newMarker.feature = { type: "Feature", properties: props };
-            const div = document.createElement('div'); div.className = 'layer-item'; div.id = 'row-' + lid;
-            div.innerHTML = `<input type="checkbox" checked onchange="toggleLayer(${lid}, this.checked)"><span id="lbl-${lid}">${getIcon(newMarker)} จุดใหม่</span>`;
-            div.onclick = (e) => { if(e.target.type!=='checkbox'){ panTo(newMarker); showInfo(newMarker.feature.properties, getCenter(newMarker)); newMarker.openPopup(); }};
-            document.getElementById(currentTableSubId).appendChild(div);
-            saveData(); openTable(currentTableGroup, null, currentTableSubId);
-        }
-        function saveTableChanges() { saveData(); document.getElementById('table-modal').style.display = 'none'; }
+        function updateCell(lid, key, value) { if(layerStore[lid]) layerStore[lid].feature.properties[key] = value; }
+        function addNewColumn() { showInputModal("เพิ่มคอลัมน์ใหม่", "ชื่อ:", (colName) => { Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === currentTableGroup) l.feature.properties[colName] = ""; }); openTable(currentTableGroup, null, currentTableSubId); }); }
+        function deleteColumn(colName) { showModal("ลบคอลัมน์", `ยืนยันลบ "${colName}"?`, true, () => { Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === currentTableGroup) delete l.feature.properties[colName]; }); openTable(currentTableGroup, null, currentTableSubId); closeModal(); }); }
+        function deleteTableRow(lid) { showModal("ลบแถว", "ยืนยัน?", true, () => { const layer = layerStore[lid]; map.removeLayer(layer); const row = document.getElementById('row-' + lid); if(row) row.remove(); delete layerStore[lid]; openTable(currentTableGroup, null, currentTableSubId); closeModal(); }); }
+        function addTableRow() { const center = map.getCenter(); const newMarker = createCustomMarker(center, '#1a73e8'); newMarker.addTo(map); const props = { name: "จุดใหม่", description: "", _layerName: currentTableGroup }; const lid = L.stamp(newMarker); layerStore[lid] = newMarker; newMarker.feature = { type: "Feature", properties: props }; const div = document.createElement('div'); div.className = 'layer-item'; div.id = 'row-' + lid; div.innerHTML = `<input type="checkbox" checked onchange="toggleLayer(${lid}, this.checked)"><span id="lbl-${lid}">${getIcon(newMarker)} จุดใหม่</span>`; div.onclick = (e) => { if(e.target.type!=='checkbox'){ panTo(newMarker); showInfo(newMarker.feature.properties, getCenter(newMarker)); newMarker.openPopup(); }}; document.getElementById(currentTableSubId).appendChild(div); openTable(currentTableGroup, null, currentTableSubId); }
+        function saveTableChanges() { document.getElementById('table-modal').style.display = 'none'; }
 
         // --- Utils ---
-        function showModal(t,d,isD,cb) { 
-            document.getElementById('modal-title').innerText=t; document.getElementById('modal-desc').innerText=d; 
-            document.getElementById('custom-modal').style.display='flex'; 
-            document.getElementById('modal-confirm-btn').onclick=()=>{ cb(); closeModal(); }; 
-            document.getElementById('modal-input').style.display='none'; 
-        }
-        function showInputModal(t,l,cb) { 
-            document.getElementById('modal-title').innerText=t; document.getElementById('modal-desc').innerText=l; 
-            document.getElementById('modal-input').value = ''; document.getElementById('modal-input').style.display='block'; 
-            document.getElementById('custom-modal').style.display='flex'; 
-            document.getElementById('modal-confirm-btn').onclick=()=>{cb(document.getElementById('modal-input').value);closeModal()}; 
-        }
+        function showModal(t,d,isD,cb) { document.getElementById('modal-title').innerText=t; document.getElementById('modal-desc').innerText=d; document.getElementById('custom-modal').style.display='flex'; document.getElementById('modal-confirm-btn').onclick=()=>{ cb(); closeModal(); }; document.getElementById('modal-input').style.display='none'; }
+        function showInputModal(t,l,cb) { document.getElementById('modal-title').innerText=t; document.getElementById('modal-desc').innerText=l; document.getElementById('modal-input').value = ''; document.getElementById('modal-input').style.display='block'; document.getElementById('custom-modal').style.display='flex'; document.getElementById('modal-confirm-btn').onclick=()=>{cb(document.getElementById('modal-input').value);closeModal()}; }
         function closeModal() { document.getElementById('custom-modal').style.display='none'; }
         function showLoader(s) { document.getElementById('loader').style.display = s?'flex':'none'; }
-        function askDeleteGroup(id, menuId) { 
-            if(menuId) document.getElementById(menuId).style.display='none'; 
-            showModal("ลบเลเยอร์", "ยืนยัน?", true, ()=>{ 
-                const groupTitle = document.getElementById(id).querySelector('.group-title').innerText;
-                document.getElementById(id).remove(); 
-                Object.values(layerStore).forEach(l=>{
-                    if(l.feature.properties._layerName === groupTitle) { map.removeLayer(l); delete layerStore[L.stamp(l)]; }
-                });
-                saveData(); closeModal();
-            }); 
-        }
+        function askDeleteGroup(id, menuId) { if(menuId) document.getElementById(menuId).style.display='none'; showModal("ลบเลเยอร์", "ยืนยัน?", true, ()=>{ const groupTitle = document.getElementById(id).querySelector('.group-title').innerText; document.getElementById(id).remove(); Object.values(layerStore).forEach(l=>{ if(l.feature.properties._layerName === groupTitle) { map.removeLayer(l); delete layerStore[L.stamp(l)]; } }); closeModal(); }); }
         window.toggleSize = () => document.getElementById('sidebar-right').classList.toggle('expanded');
         function getSmartName(p) { for(let k in p) if(/name|title|ชื่อ/i.test(k)) return p[k]; return Object.values(p)[0] || "วัตถุ"; }
         function getIcon(l) { return (l instanceof L.Marker)?'<i class="fa-solid fa-location-dot" style="color:#1a73e8"></i>':'<i class="fa-solid fa-route" style="color:#1a73e8"></i>'; }
@@ -841,16 +633,13 @@
         function getCenter(l) { return l.getLatLng ? l.getLatLng() : l.getBounds().getCenter(); }
         function showInfo(props, latlng) { map.panTo(latlng); let h = ""; for(let k in props) if(!k.startsWith('_')) h += `<div class="info-row"><div class="label">${k}</div><div class="value">${props[k]}</div></div>`; h += `<div class="info-row"><div class="label">พิกัด</div><div class="value">${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}</div></div>`; document.getElementById('info-container').innerHTML = h; updateSV(latlng); }
         function updateSV(latlng) { document.getElementById('sv-msg').style.display='none'; document.getElementById('sv-image').style.display='none'; document.getElementById('sv-iframe').src=`https://maps.google.com/maps?q=&layer=c&cbll=${latlng.lat},${latlng.lng}&cbp=11,0,0,0,0&output=svembed`; document.getElementById('sv-iframe').style.display='block'; }
+
+        // **Start App**
         window.onload = initDashboard;
 
-        // --- SUPABASE SAVE LOGIC (Modern) ---
-        const MY_PROJECT_URL = 'https://ajegnkjhsggcsewoczim.supabase.co'; 
-        const MY_API_KEY = 'sb_publishable_yyBuBlGayLz7OD4L2WSDRQ_-dusWneS';
-        const dbClient = supabase.createClient(MY_PROJECT_URL, MY_API_KEY);
-
+        // --- SAVE/UPDATE PROJECT (Modern & Auto-Update) ---
         function saveProject() {
-            const modal = document.getElementById('saveModal');
-            const box = document.getElementById('saveModalBox');
+            const modal = document.getElementById('saveModal'); const box = document.getElementById('saveModalBox');
             modal.style.display = 'flex';
             document.getElementById('saveIconContainer').innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i>';
             document.getElementById('saveIconContainer').style.color = '#1a73e8';
@@ -859,57 +648,58 @@
             document.getElementById('projectNameInput').style.display = 'block';
             document.getElementById('btnConfirmSave').innerText = 'บันทึกทันที';
             document.getElementById('btnConfirmSave').disabled = false;
+            
+            const currentName = document.getElementById('proj-name').value;
+            if(currentName && currentName !== "แผนที่ไม่มีชื่อ") document.getElementById('projectNameInput').value = currentName;
+
             setTimeout(() => { box.classList.add('active'); }, 10);
             document.getElementById('projectNameInput').focus();
         }
 
         function closeSaveModal() {
-            const box = document.getElementById('saveModalBox');
-            box.classList.remove('active');
+            const box = document.getElementById('saveModalBox'); box.classList.remove('active');
             setTimeout(() => { document.getElementById('saveModal').style.display = 'none'; }, 200);
         }
 
         async function confirmSaveToSupabase() {
-            const nameInput = document.getElementById('projectNameInput');
-            const projectName = nameInput.value;
+            const nameInput = document.getElementById('projectNameInput'); const projectName = nameInput.value;
             if (!projectName) { alert("กรุณาตั้งชื่อก่อนครับ"); return; }
-
-            const btn = document.getElementById('btnConfirmSave');
-            btn.innerText = "กำลังส่งข้อมูล..."; btn.disabled = true;
+            const btn = document.getElementById('btnConfirmSave'); btn.innerText = "กำลังส่งข้อมูล..."; btn.disabled = true;
 
             const mapState = { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() };
             const layers = [];
             if (typeof layerStore !== 'undefined') {
                 for (let id in layerStore) {
-                    const layer = layerStore[id];
-                    const gid = layer.subId || 'Uncategorized';
+                    const layer = layerStore[id]; const gid = layer.subId || 'Uncategorized';
                     let title = "Group " + gid;
-                    try {
-                         const el = document.getElementById(gid);
-                         if(el && el.previousElementSibling) title = el.previousElementSibling.querySelector('.group-title').innerText;
-                    } catch(e){}
+                    try { const el = document.getElementById(gid); if(el && el.previousElementSibling) title = el.previousElementSibling.querySelector('.group-title').innerText; } catch(e){}
                     layers.push({ id: gid, name: title, features: layerStore[id].toGeoJSON() });
                 }
             }
 
             try {
-                const { data, error } = await dbClient 
-                    .from('projects')
-                    .insert([{ name: projectName, map_state: mapState, layers: layers }]);
+                let error;
+                if (currentProjId) {
+                    const res = await dbClient.from('projects').update({ name: projectName, map_state: mapState, layers: layers }).eq('id', currentProjId);
+                    error = res.error;
+                } else {
+                    const res = await dbClient.from('projects').insert([{ name: projectName, map_state: mapState, layers: layers }]).select();
+                    if(res.data && res.data[0]) currentProjId = res.data[0].id;
+                    error = res.error;
+                }
 
                 if (error) throw error;
 
+                document.getElementById('proj-name').value = projectName;
                 document.getElementById('saveIconContainer').innerHTML = '<i class="fa-solid fa-circle-check"></i>';
                 document.getElementById('saveIconContainer').style.color = '#28a745';
                 document.getElementById('saveTitle').innerText = 'บันทึกเรียบร้อย!';
                 document.getElementById('projectNameInput').style.display = 'none';
                 document.getElementById('saveActions').style.display = 'none';
 
-                setTimeout(() => { closeSaveModal(); nameInput.value = ''; }, 1500);
-
+                setTimeout(() => { closeSaveModal(); }, 1500);
             } catch (err) {
-                console.error(err); alert("❌ บันทึกไม่ได้: " + err.message);
-                btn.innerText = "ลองใหม่"; btn.disabled = false;
+                console.error(err); alert("❌ บันทึกไม่ได้: " + err.message); btn.innerText = "ลองใหม่"; btn.disabled = false;
             }
         }
     </script>
