@@ -27,14 +27,14 @@
             display: flex; flex-direction: column; height: 100%; width: 100%; 
             z-index: 20000; background: #f0f2f5; position: fixed; top:0; left:0;
         }
-        .dash-header { background: #fff; padding: 10px 30px; border-bottom: 1px solid #dadce0; display: flex; justify-content: space-between; align-items: center; height: 70px; }
+        .dash-header { background: #fff; padding: 10px 30px; border-bottom: 1px solid #dadce0; display: flex; justify-content: space-between; align-items: center; height: 100px; }
         
         /* 3. LOGO STYLE (Fix) */
         .dash-logo { display: flex; align-items: center; gap: 10px; height: 100%; cursor: pointer; position: relative; }
-        .logo-img { height: 50px; width: auto; object-fit: contain; transition: 0.2s; }
+        .logo-img { height: 30px; width: auto; object-fit: contain; transition: 0.2s; }
         .dash-logo:hover .logo-img { opacity: 0.7; }
         .dash-logo:hover::after {
-            content: '📸 เปลี่ยนโลโก้'; position: absolute; left: 0; bottom: -15px; 
+            content: ''; position: absolute; left: 0; bottom: -15px; 
             font-size: 50px; background: #333; color: white; padding: 2px 5px; border-radius: 4px; pointer-events: none;
         }
         
@@ -339,7 +339,7 @@
     <div id="dashboard-view">
         <div class="dash-header">
             <div class="dash-logo" onclick="document.getElementById('logo-uploader').click()">
-                <img id="main-logo" src="./image_069b9b.png" alt="INFRA Logo" class="logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <img id="main-logo" src="./logo/infra.png" alt="INFRA Logo" class="logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
                 <span style="display:none; color:#1a73e8; font-weight:1000;">INFRA</span>
             </div>
             <button class="btn-create" onclick="createNewProject()">+ สร้างแผนที่ใหม่</button>
@@ -356,7 +356,8 @@
                     <div class="header-top">
                         <div class="brand-text" style="display:flex; align-items:center;">
                             <i class="fa-solid fa-bars btn-close-menu" onclick="toggleSidebar()"></i> 
-                            <span style="color:#1a73e8;">INFRA </span>
+                            <img id="main-logo" src="./logo/infra.png" alt="INFRA Logo" class="logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                            <!-- <span style="color:#1a73e8;">INFRA </span> -->
                         </div>
                         <div class="btn-back" onclick="saveAndExit()"><i class="fa-solid fa-arrow-left"></i></div>
                     </div>
