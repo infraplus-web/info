@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WEB GIS: Complete System (Final Submission)</title>
+    <title>WEB GIS: Complete System (Final Perfected)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.14.2/dist/leaflet-geoman.css" />
     <link rel="stylesheet" href="https://ppete2.github.io/Leaflet.PolylineMeasure/Leaflet.PolylineMeasure.css" />
+    
     <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
@@ -29,7 +30,6 @@
         }
         .dash-header { background: #fff; padding: 10px 30px; border-bottom: 1px solid #dadce0; display: flex; justify-content: space-between; align-items: center; height: 100px; }
         
-        /* 3. LOGO STYLE (Fix) */
         .dash-logo { display: flex; align-items: center; gap: 10px; height: 100%; cursor: pointer; position: relative; }
         .logo-img { height: 30px; width: auto; object-fit: contain; transition: 0.2s; }
         .dash-logo:hover .logo-img { opacity: 0.7; }
@@ -134,6 +134,34 @@
 
         #map { flex: 1; height: 100%; background: #e5e3df; z-index: 1; position:relative; }
 
+        /* 1. MERGED TOOLBAR CSS */
+        .leaflet-top.leaflet-left {
+            margin-top: 10px !important;
+            margin-left: 10px !important;
+            box-shadow: 0 1px 5px rgba(0,0,0,0.4);
+            border-radius: 4px;
+            background: #fff;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden; /* This rounds the corners of the whole group */
+            pointer-events: auto;
+        }
+        /* Override all child controls to remove gaps and rounded corners */
+        .leaflet-top.leaflet-left .leaflet-control {
+            margin: 0 !important;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            border-bottom: 1px solid #ccc !important;
+            pointer-events: auto;
+        }
+        .leaflet-top.leaflet-left .leaflet-control:last-child {
+            border-bottom: none !important;
+        }
+        .leaflet-top.leaflet-left .leaflet-bar {
+            box-shadow: none !important;
+            border: none !important;
+        }
+
         .scissors-cursor {
             cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="%23d93025" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><line x1="20" y1="4" x2="8.12" y2="15.88"/><line x1="14.47" y1="14.48" x2="20" y2="20"/><line x1="8.12" y1="8.12" x2="12" y2="12"/></svg>') 16 16, crosshair !important;
         }
@@ -221,12 +249,9 @@
         .label { font-size: 12px; font-weight: 600; color: #5f6368; margin-right: 10px; flex-shrink: 0; }
         .value { font-size: 14px; color: #202124; text-align: right; word-break: break-word; }
 
-        .leaflet-bar { box-shadow: 0 1px 5px rgba(0,0,0,0.4); border: none; border-radius: 4px; }
-        .leaflet-bar a { background-color: #fff; border-bottom: 1px solid #ccc; width: 34px; height: 34px; line-height: 34px; display: block; text-align: center; text-decoration: none; color: #444; font-size: 16px; }
+        .leaflet-bar a { background-color: #fff; width: 34px; height: 34px; line-height: 34px; display: block; text-align: center; text-decoration: none; color: #444; font-size: 16px; }
         .leaflet-bar a:hover { background-color: #f4f4f4; color: #000; }
-        .leaflet-bar a:last-child { border-bottom: none; }
         .custom-hand-btn.active { background-color: #e8f0fe !important; color: #1a73e8 !important; font-weight: bold; }
-        .leaflet-top.leaflet-left .leaflet-control { margin-top: 10px; margin-left: 10px; clear: both; }
 
         .toast-notification {
             position: fixed; top: 20px; right: 20px; background: #fff; padding: 15px 25px; border-radius: 8px;
@@ -241,7 +266,7 @@
         .toast-msg { font-size: 14px; color: #666; }
 
         .btn-split-tool {
-            background-color: #fff; width: 34px; height: 34px; border-bottom: 1px solid #ccc;
+            background-color: #fff; width: 34px; height: 34px; 
             display: flex; justify-content: center; align-items: center; cursor: pointer; color: #444; font-size: 16px; transition: 0.2s;
         }
         .btn-split-tool:hover { background-color: #f4f4f4; }
@@ -295,7 +320,6 @@
         <div class="modal-box">
             <div class="modal-title" style="font-size:18px; font-weight:600; margin-bottom:15px;">ส่งออกข้อมูล</div>
             <div style="display:flex; flex-direction:column; gap:10px;">
-                <button class="action-row" onclick="triggerExport('shapefile')"><i class="fa-solid fa-file-zipper"></i> Shapefile (.zip)</button>
                 <button class="action-row" onclick="triggerExport('geojson')"><i class="fa-solid fa-code"></i> GeoJSON</button>
                 <button class="action-row" onclick="triggerExport('kml')"><i class="fa-solid fa-earth-americas"></i> KML</button>
                 <button class="action-row" onclick="triggerExport('csv')"><i class="fa-solid fa-table"></i> CSV</button>
@@ -356,8 +380,7 @@
                     <div class="header-top">
                         <div class="brand-text" style="display:flex; align-items:center;">
                             <i class="fa-solid fa-bars btn-close-menu" onclick="toggleSidebar()"></i> 
-                            <img id="main-logo" src="./logo/infra.png" alt="INFRA Logo" class="logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
-                            <!-- <span style="color:#1a73e8;">INFRA </span> -->
+                            <img id="side-logo" src="./logo/infra.png" alt="INFRA Logo" class="logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
                         </div>
                         <div class="btn-back" onclick="saveAndExit()"><i class="fa-solid fa-arrow-left"></i></div>
                     </div>
@@ -374,15 +397,15 @@
                         <i class="fa-solid fa-save"></i> บันทึกงาน (ตั้งชื่อ)
                     </div>
                     <div class="action-row" onclick="document.getElementById('fileInput').click()">
-                        <i class="fa-solid fa-upload"></i> นำเข้าข้อมูล (CSV, Excel, Zip, รูปภาพ)
+                        <i class="fa-solid fa-upload"></i> นำเข้าข้อมูล (เลือกหลายไฟล์ได้)
                     </div>
                     
                     <div class="action-row" onclick="openGlobalExportModal()">
-                        <i class="fa-solid fa-download"></i> ส่งออกข้อมูลโปรเจกต์ (Export All)
+                        <i class="fa-solid fa-download"></i> ส่งออกข้อมูลทั้งหมด (Export All)
                     </div>
                     
-                    <input type="file" id="fileInput" accept=".zip,.kml,.json,.geojson,.csv,.xlsx,.xls,.jpg,.jpeg,.png" style="display:none;" onchange="if(this.files.length) processFile(this.files[0])">
-                    <input type="file" id="layerFileInput" accept=".zip,.kml,.json,.geojson,.csv,.xlsx,.xls,.jpg,.jpeg,.png" style="display:none;" onchange="if(this.files.length) processFile(this.files[0], selectedSubId)">
+                    <input type="file" id="fileInput" multiple accept=".zip,.kml,.json,.geojson,.csv,.xlsx,.xls,.jpg,.jpeg,.png" style="display:none;" onchange="handleMultipleImports(this.files, null)">
+                    <input type="file" id="layerFileInput" multiple accept=".zip,.kml,.json,.geojson,.csv,.xlsx,.xls,.jpg,.jpeg,.png" style="display:none;" onchange="handleMultipleImports(this.files, selectedSubId)">
                     
                     <div class="search-bar">
                         <input type="text" id="search-inp" placeholder="ค้นหาสถานที่..." oninput="handleSearchInput(this.value)">
@@ -453,7 +476,7 @@
         let isGeomanDrawing = false; 
         let isSplitMode = false;
         let highlightLayer = null; 
-        let isGlobalExport = false; // Flag for global export
+        let isGlobalExport = false; 
 
         // --- HISTORY SYSTEM ---
         let historyStack = [];
@@ -545,18 +568,32 @@
         async function initDashboard() {
             document.getElementById('dashboard-view').style.display='flex';
             document.getElementById('map-view').style.display='none';
-            // 3. Load custom logo logic
+            
             const savedLogo = localStorage.getItem('customLogo');
-            if(savedLogo) document.getElementById('main-logo').src = savedLogo;
+            if(savedLogo) {
+                const mainLogo = document.getElementById('main-logo');
+                const sideLogo = document.getElementById('side-logo');
+                if(mainLogo) { mainLogo.src = savedLogo; mainLogo.style.display = 'block'; if(mainLogo.nextElementSibling) mainLogo.nextElementSibling.style.display = 'none'; }
+                if(sideLogo) { sideLogo.src = savedLogo; sideLogo.style.display = 'block'; }
+            }
             await renderProjectsFromCloud();
         }
 
-        // 3. LOGO UPDATE
         function updateLogo(input) {
             if (input.files && input.files[0]) {
                 var reader = new FileReader();
                 reader.onload = function (e) {
-                    document.getElementById('main-logo').src = e.target.result;
+                    const mainLogo = document.getElementById('main-logo');
+                    const sideLogo = document.getElementById('side-logo');
+                    if(mainLogo) {
+                        mainLogo.src = e.target.result;
+                        mainLogo.style.display = 'block';
+                        if(mainLogo.nextElementSibling) mainLogo.nextElementSibling.style.display = 'none';
+                    }
+                    if(sideLogo) {
+                        sideLogo.src = e.target.result;
+                        sideLogo.style.display = 'block';
+                    }
                     localStorage.setItem('customLogo', e.target.result); 
                 };
                 reader.readAsDataURL(input.files[0]);
@@ -634,7 +671,6 @@
             const gStreet = L.tileLayer('http://{s}.google.com/vt/lyrs=m&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3']}).addTo(map);
             const gHybrid = L.tileLayer('http://{s}.google.com/vt/lyrs=y&x={x}&y={y}&z={z}',{maxZoom:20,subdomains:['mt0','mt1','mt2','mt3']});
             
-            // 2. RESTORE BASE MAPS
             L.control.layers({ 
                 "Google ถนน": gStreet, 
                 "Google ดาวเทียม": gHybrid, 
@@ -645,19 +681,20 @@
                 options: { position: 'topleft' },
                 onAdd: function(map) {
                     const container = L.DomUtil.create('div', 'leaflet-bar leaflet-control');
+                    // 1. FIX: PREVENT CLICK THROUGH ON TOOLBAR
+                    L.DomEvent.disableClickPropagation(container);
+                    L.DomEvent.disableScrollPropagation(container);
+
                     // Pan
                     const btnHand = L.DomUtil.create('a', 'custom-hand-btn active', container);
                     btnHand.innerHTML = '<i class="fa-solid fa-hand"></i>';
                     btnHand.href = "#"; btnHand.title = "โหมดเลื่อนแผนที่"; btnHand.id = "hand-control-btn";
                     btnHand.onclick = function(e) {
-                        e.preventDefault(); resetTools();
+                        e.preventDefault(); 
+                        resetTools();
                         document.getElementById('hand-control-btn').classList.add('active');
                         document.getElementById('map').style.cursor = 'grab';
                         map.pm.disableDraw(); map.pm.disableGlobalEditMode();
-                        if (measureControl) {
-                            map.fire('polylinemeasure:clear');
-                            document.querySelectorAll('.polyline-measure-tooltip').forEach(e => e.remove());
-                        }
                     }
                     // Scissors
                     const btnSplit = L.DomUtil.create('a', 'btn-split-tool', container);
@@ -685,9 +722,9 @@
                 isSplitMode = false;
                 if(highlightLayer) { map.removeLayer(highlightLayer); highlightLayer = null; }
                 
-                if(measureControl) {
-                    map.fire('polylinemeasure:clear'); 
-                    document.querySelectorAll('.polyline-measure-tooltip').forEach(e => e.remove());
+                // 2. FIX: AGGRESSIVE MEASURE TOOL KILL
+                if(measureControl && measureControl._measuring) {
+                    measureControl._toggleMeasure(); 
                 }
             }
 
@@ -936,35 +973,38 @@
                 }
             });
 
+            // 1. SPLIT VISUAL: GLOW ON HOVER
             layer.on('mouseover', e => {
                 if(isSplitMode && (layer instanceof L.Polyline)) {
-                    layer.setStyle({ color: '#d93025', weight: 5, dashArray: '5, 5' }); 
-                    if(!layer.verticesMarkers) {
-                        layer.verticesMarkers = [];
-                        let latlngs = layer.getLatLngs();
-                        if(Array.isArray(latlngs[0])) latlngs = latlngs.flat();
-                        latlngs.forEach(ll => {
-                            const m = L.circleMarker(ll, { radius:4, color:'#d93025', fillColor:'#fff', fillOpacity:1, weight:2 }).addTo(map);
-                            layer.verticesMarkers.push(m);
-                        });
-                    }
+                    L.DomUtil.addClass(layer._path, 'cut-highlight');
                 }
             });
             layer.on('mouseout', e => {
-                if(isSplitMode && (layer instanceof L.Polyline)) {
-                    layer.setStyle({ color: layer.feature.properties._color || '#3388ff', weight: 3, dashArray: null });
-                    if(layer.verticesMarkers) {
-                        layer.verticesMarkers.forEach(m => map.removeLayer(m));
-                        layer.verticesMarkers = null;
-                    }
-                }
+                 if (layer._path) L.DomUtil.removeClass(layer._path, 'cut-highlight');
             });
         }
 
         window.toggleLayer = function(lid, checked) { if (checked) map.addLayer(layerStore[lid]); else map.removeLayer(layerStore[lid]); };
         function handleDelete(layer) { const row = document.getElementById('row-' + L.stamp(layer)); if(row) row.remove(); delete layerStore[L.stamp(layer)]; }
 
-        // --- 1. SPLIT TOOL RENAME FIX ---
+        function getNextIndex(baseName) {
+            let maxIndex = 0;
+            const regex = new RegExp(`^${baseName}\\s(\\d+)$`);
+
+            for (let id in layerStore) {
+                const props = layerStore[id].feature.properties;
+                if (props && props.name) {
+                    const match = props.name.match(regex);
+                    if (match) {
+                        const num = parseInt(match[1]);
+                        if (num > maxIndex) maxIndex = num;
+                    } 
+                }
+            }
+            return maxIndex + 1;
+        }
+
+        // 3. FIX: CALCULATE GAP FOR CUT LINE & SHOW VERTICES
         function splitLineAtPoint(layer, latlng) {
             const latlngs = layer.getLatLngs();
             if (Array.isArray(latlngs[0])) { alert("โหมดตัดเส้นง่ายรองรับเฉพาะเส้นเดี่ยว (Simple Line) เท่านั้น"); return; }
@@ -975,21 +1015,57 @@
                 const dist = map.latLngToLayerPoint(latlng).distanceTo(point);
                 if (dist < minDistance) { minDistance = dist; closestIdx = i; splitPoint = map.layerPointToLatLng(point); }
             }
+            
             if (closestIdx !== -1 && splitPoint) {
                 if(layer.verticesMarkers) { layer.verticesMarkers.forEach(m => map.removeLayer(m)); layer.verticesMarkers = null; }
-                const line1Latlngs = latlngs.slice(0, closestIdx + 1); line1Latlngs.push(splitPoint);
-                const line2Latlngs = [splitPoint]; line2Latlngs.push(...latlngs.slice(closestIdx + 1));
+                
+                // --- CALCULATE GAP (6 pixels distance) ---
+                let p0 = map.latLngToLayerPoint(latlngs[closestIdx]);
+                let p_split = map.latLngToLayerPoint(splitPoint);
+                let p1 = map.latLngToLayerPoint(latlngs[closestIdx + 1]);
+
+                let v1 = { x: p0.x - p_split.x, y: p0.y - p_split.y };
+                let len1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+                let u1 = len1 > 0 ? { x: v1.x / len1, y: v1.y / len1 } : { x: 0, y: 0 };
+
+                let v2 = { x: p1.x - p_split.x, y: p1.y - p_split.y };
+                let len2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+                let u2 = len2 > 0 ? { x: v2.x / len2, y: v2.y / len2 } : { x: 0, y: 0 };
+
+                let gapPixels = 6; 
+
+                let end1 = map.layerPointToLatLng(L.point(p_split.x + u1.x * gapPixels, p_split.y + u1.y * gapPixels));
+                let start2 = map.layerPointToLatLng(L.point(p_split.x + u2.x * gapPixels, p_split.y + u2.y * gapPixels));
+
+                const line1Latlngs = latlngs.slice(0, closestIdx + 1); line1Latlngs.push(end1);
+                const line2Latlngs = [start2]; line2Latlngs.push(...latlngs.slice(closestIdx + 1));
+                // -----------------------------------------
+
                 const props = { ...layer.feature.properties }; const subId = layer.subId;
                 
-                // RENAME LOGIC: Simply add numbers without brackets
-                const baseName = props.name.replace(/\s\d+$/, ''); // Remove existing number suffix if any
-                const name1 = baseName + " 1";
-                const name2 = baseName + " 2";
+                const baseName = props.name.replace(/\s\d+$/, ''); 
+                let nextIdx = getNextIndex(baseName);
+                const name1 = `${baseName} ${nextIdx}`;
+                const name2 = `${baseName} ${nextIdx + 1}`;
 
                 map.removeLayer(layer); handleDelete(layer);
+                
                 const l1 = L.polyline(line1Latlngs, { color: props._color || '#3388ff' }); setupLayer(l1, subId, { ...props, name: name1 });
                 const l2 = L.polyline(line2Latlngs, { color: props._color || '#3388ff' }); setupLayer(l2, subId, { ...props, name: name2 });
-                showModernSuccess("ตัดเส้นเรียบร้อย", "แบ่งเส้นเรียบร้อย"); recordHistory();
+                
+                // Show vertices instantly to mimic edit mode
+                setTimeout(() => {
+                    l1.pm.enable();
+                    l2.pm.enable();
+                }, 100);
+
+                showModernSuccess("ตัดเส้นเรียบร้อย", "แบ่งเส้นและสร้างระยะห่างให้เห็นชัดเจนแล้ว"); 
+                recordHistory();
+
+                // Auto reset to hand tool
+                resetTools();
+                document.getElementById('hand-control-btn').classList.add('active');
+                document.getElementById('map').style.cursor = 'grab';
             }
         }
 
@@ -1022,6 +1098,13 @@
             }, 300);
         }
 
+        document.addEventListener('click', function(e) {
+            const searchBar = document.querySelector('.search-bar');
+            if (!searchBar.contains(e.target)) {
+                document.getElementById('search-results').style.display = 'none';
+            }
+        });
+
         function handleMapClick(latlng, manualName) {
             if(clickMarker) map.removeLayer(clickMarker);
             clickMarker = createCustomMarker(latlng, '#d93025'); clickMarker.addTo(map); updateSV(latlng);
@@ -1034,7 +1117,9 @@
         }
         function searchLoc() {
             const q = document.getElementById('search-inp').value; if(!q) return; showLoader(true);
-            fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&q=${q}&accept-language=th&addressdetails=1`)
+            document.getElementById('search-results').style.display = 'none';
+            
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&accept-language=th&addressdetails=1`)
             .then(r=>r.json()).then(d=>{
                 showLoader(false); if(d.length) { 
                     const lat=parseFloat(d[0].lat), lon=parseFloat(d[0].lon); map.flyTo([lat,lon], 16, { duration: 1.5 }); handleMapClick({lat:lat, lon:lon}, d[0].display_name.split(',')[0]); 
@@ -1046,8 +1131,20 @@
         function openTable(targetGroup, menuId, subId) {
             if(menuId) document.getElementById(menuId).style.display = 'none';
             currentTableGroup = targetGroup; currentTableSubId = subId;
-            let headers = new Set(['name', 'description', 'distance']), tableData = [];
-            Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === targetGroup) { Object.keys(l.feature.properties).forEach(k => { if(!k.startsWith('_')) headers.add(k); }); tableData.push({ id: L.stamp(l), props: l.feature.properties }); } });
+            let headers = new Set(['name', 'description', 'distance', 'lat', 'lng']), tableData = []; 
+            
+            Object.values(layerStore).forEach(l => { 
+                if(l.feature.properties._layerName === targetGroup) { 
+                    
+                    let center = l.getLatLng ? l.getLatLng() : l.getBounds().getCenter();
+                    l.feature.properties.lat = center.lat.toFixed(6);
+                    l.feature.properties.lng = center.lng.toFixed(6);
+
+                    Object.keys(l.feature.properties).forEach(k => { if(!k.startsWith('_')) headers.add(k); }); 
+                    tableData.push({ id: L.stamp(l), props: l.feature.properties }); 
+                } 
+            });
+
             let html = `<table class="data-table"><thead><tr>`;
             headers.forEach(h => html += `<th>${h} <i class="fa-solid fa-times col-del-btn" onclick="deleteColumn('${h}')"></i></th>`);
             html += `<th>จัดการ</th></tr></thead><tbody>`;
@@ -1108,9 +1205,16 @@
         }
 
         // --- IMPORT & EXPORT ---
+        function handleMultipleImports(files, subId) {
+             if(!files || !files.length) return;
+             showLoader(true);
+             Array.from(files).forEach(file => processFile(file, subId));
+             document.getElementById('fileInput').value = '';
+             document.getElementById('layerFileInput').value = '';
+        }
+
         function processFile(file, subId) {
             if (!file) return;
-            showLoader(true);
             const fileName = file.name; const ext = fileName.split('.').pop().toLowerCase();
             const targetId = subId || createGroupUI(fileName.replace(/\.[^/.]+$/, ""));
             const reader = new FileReader();
@@ -1140,17 +1244,15 @@
             } else if (['kml', 'json', 'geojson'].includes(ext)) {
                 reader.onload = t => { try { let g = file.name.endsWith('.kml') ? toGeoJSON.kml(new DOMParser().parseFromString(t.target.result, 'text/xml')) : JSON.parse(t.target.result); finishImport(g, targetId); } catch(e){ showLoader(false); } }; reader.readAsText(file);
             }
-            document.getElementById('fileInput').value = ''; document.getElementById('layerFileInput').value = '';
         }
         function importToLayer(subId, menuId) { selectedSubId = subId; document.getElementById(menuId).style.display = 'none'; document.getElementById('layerFileInput').click(); }
         function finishImport(g, subId) { const grp = L.featureGroup(); const features = Array.isArray(g) ? g : (g.features || [g]); L.geoJSON(features, { pointToLayer: function (feature, latlng) { return createCustomMarker(latlng, '#1a73e8'); }, onEachFeature:(f,l)=>{ f.properties._layerName = document.getElementById(subId).previousElementSibling.querySelector('.group-title').innerText; setupLayer(l,subId,f.properties); grp.addLayer(l); } }); if(grp.getLayers().length) map.fitBounds(grp.getBounds()); showLoader(false); recordHistory(); }
         function processTabularData(data, targetId) { if (data.length === 0) { showLoader(false); return; } const keys = Object.keys(data[0]); const latKey = keys.find(k => /^(lat|latitude|y)$/i.test(k.trim())); const lonKey = keys.find(k => /^(lon|lng|long|longitude|x)$/i.test(k.trim())); if (!latKey || !lonKey) { alert("ไม่พบคอลัมน์พิกัด (เช่น lat, lon)"); showLoader(false); return; } let count = 0; data.forEach(row => { const lat = parseFloat(row[latKey]); const lng = parseFloat(row[lonKey]); if (!isNaN(lat) && !isNaN(lng)) { const marker = createCustomMarker([lat, lng], '#1a73e8'); row._layerName = document.getElementById(targetId).previousElementSibling.querySelector('.group-title').innerText; setupLayer(marker, targetId, row); count++; } }); showLoader(false); if(count === 0) alert("ไม่พบข้อมูลพิกัด"); recordHistory(); }
         function convertDMSToDD(degrees, minutes, seconds, direction) { let dd = degrees + minutes / 60 + seconds / (60 * 60); if (direction == "S" || direction == "W") dd = dd * -1; return dd; }
         
-        // 4. GLOBAL EXPORT
         function openGlobalExportModal() {
             isGlobalExport = true;
-            exportTargetGroupId = null; // null means ALL
+            exportTargetGroupId = null;
             document.getElementById('export-modal').style.display='flex';
         }
         function exportGroup(groupName, menuId) { 
@@ -1162,19 +1264,31 @@
         function triggerExport(format) { 
             let data = []; 
             Object.values(layerStore).forEach(l => { 
-                // IF Global export -> Take all. IF Group export -> Take only matching group name
                 if (isGlobalExport || l.feature.properties._layerName === exportTargetGroupId) { 
+                    
+                    let center = l.getLatLng ? l.getLatLng() : l.getBounds().getCenter();
+                    
+                    let exportProps = { ...l.feature.properties };
+                    exportProps.lat = center.lat.toFixed(6);
+                    exportProps.lng = center.lng.toFixed(6);
+                    delete exportProps._color; // ลบรหัสสีออกก่อนส่งออก
+
                     let f = l.toGeoJSON(); 
-                    f.properties = l.feature.properties; 
+                    f.properties = exportProps; 
                     data.push(f); 
                 } 
             }); 
             if(!data.length) return alert("ไม่มีข้อมูล"); 
             const name = isGlobalExport ? "project_data_all" : (exportTargetGroupId || "data"); 
             const geojson = {type:'FeatureCollection', features:data}; 
-            if(format === 'shapefile') { const options = { folder: name, types: { point: name+'_pt', polygon: name+'_poly', line: name+'_line' } }; shpwrite.download(geojson, options); } 
-            else if(format === 'csv') { const rows = data.map(f => { let r = { ...f.properties }; if(f.geometry.type === 'Point') { r.lat = f.geometry.coordinates[1]; r.lng = f.geometry.coordinates[0]; } return r; }); const content = Papa.unparse(rows); downloadFile(content, name+'.csv', 'text/csv;charset=utf-8;'); } 
-            else { const content = JSON.stringify(geojson); downloadFile(content, name+'.geojson', 'application/json;charset=utf-8'); } 
+            
+            if(format === 'geojson') {
+                const content = JSON.stringify(geojson); downloadFile(content, name+'.geojson', 'application/json;charset=utf-8');
+            } else if(format === 'csv') { 
+                const rows = data.map(f => { let r = { ...f.properties }; if(f.geometry.type === 'Point') { r.lat = f.geometry.coordinates[1]; r.lng = f.geometry.coordinates[0]; } return r; }); const content = Papa.unparse(rows); downloadFile(content, name+'.csv', 'text/csv;charset=utf-8;'); 
+            } else if(format === 'kml') {
+                const content = tokml(geojson); downloadFile(content, name+'.kml', 'application/vnd.google-earth.kml+xml');
+            }
             document.getElementById('export-modal').style.display='none'; 
         }
         function downloadFile(content, fileName, mimeType) { const blob = new Blob(["\uFEFF"+content], {type:mimeType}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileName; a.click(); }
@@ -1241,13 +1355,11 @@
             try {
                 let errorData, resultData;
                 if (currentProjId) {
-                    // Update Existing
                     const { data, error } = await dbClient.from('projects')
                         .update({ name: projectName, map_state: mapState, layers: layersData })
                         .eq('id', currentProjId).select();
                     errorData = error; resultData = data;
                 } else {
-                    // Create New
                     const { data, error } = await dbClient.from('projects')
                         .insert([{ name: projectName, map_state: mapState, layers: layersData }]).select();
                     errorData = error; resultData = data;
@@ -1255,7 +1367,6 @@
 
                 if (errorData) throw errorData;
                 
-                // IMPORTANT: Update ID so next save is an Update, not Insert
                 if(resultData && resultData.length > 0) currentProjId = resultData[0].id;
 
                 document.getElementById('proj-name').value = projectName;
