@@ -1194,7 +1194,10 @@
         function showLoader(s) { document.getElementById('loader').style.display = s?'flex':'none'; }
         function askDeleteGroup(id, menuId) { if(menuId) document.getElementById(menuId).style.display='none'; showModal("ลบเลเยอร์", "ยืนยัน?", true, ()=>{ const groupTitle = document.getElementById(id).querySelector('.group-title').innerText; document.getElementById(id).remove(); Object.values(layerStore).forEach(l=>{ if(l.feature.properties._layerName === groupTitle) { map.removeLayer(l); delete layerStore[L.stamp(l)]; } }); closeModal(); recordHistory(); }); }
         window.toggleSize = () => document.getElementById('sidebar-right').classList.toggle('expanded');
-        function getSmartName(p) { for(let k in p) if(/name|title|ชื่อ/i.test(k)) return p[k]; return Object.values(p)[0] || "วัตถุ"; }
+        function getSmartName(props) {
+  if (!props) return "ไม่มีชื่อ";
+  return props.road_code || props.road_name || props.name || "ไม่มีชื่อ";
+}
         function getCenter(l) { return l.getLatLng ? l.getLatLng() : l.getBounds().getCenter(); }
         function showInfo(props, latlng) { let h = ""; for(let k in props) if(!k.startsWith('_')) h += `<div class="info-row"><div class="label">${k}</div><div class="value">${props[k]}</div></div>`; h += `<div class="info-row"><div class="label">พิกัด</div><div class="value">${latlng.lat.toFixed(6)}, ${latlng.lng.toFixed(6)}</div></div>`; document.getElementById('info-container').innerHTML = h; }
         
