@@ -947,13 +947,25 @@
         }
 
         function setupLayer(layer, subId, props) {
-           if (props?.road_code && layer.bindTooltip) {
-  layer.bindTooltip(props.road_code, {
-    permanent: true,
-    direction: "center",
-    className: "road-code-label"
+if (props?.road_code && layer.bindTooltip) {
+    layer.bindTooltip(
+      `${props.road_code} (${props.length_km} กม.)`,
+      {
+        permanent: true,
+        direction: "center",
+        className: "road-code-label"
+      }
+    );
+  }
+
+  // คลิกแล้ว zoom ไปที่เส้น
+  layer.on("click", function () {
+    if (layer.getBounds) {
+      map.fitBounds(layer.getBounds(), { padding: [40, 40] });
+    }
   });
-}
+
+  const lid = L.stamp(layer);
             const lid = L.stamp(layer); layerStore[lid] = layer; layer.subId = subId; 
             layer.feature = layer.feature || { type: "Feature", properties: props || {} };
 
