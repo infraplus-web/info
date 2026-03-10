@@ -970,31 +970,19 @@ function setupLayer(layer, subId, props) {
   layer.subId = subId;
   layer.feature = layer.feature || { type: "Feature", properties: props || {} };
 
-  // โค้ดเดิมต่อจากนี้...
+let distLabel = "";
+if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
+  let dist = 0;
+  let latlngs = layer.getLatLngs();
+  if (Array.isArray(latlngs[0])) latlngs = latlngs.flat();
+  for (let i = 0; i < latlngs.length - 1; i++) {
+    dist += latlngs[i].distanceTo(latlngs[i + 1]);
+  }
+  layer.feature.properties.distance = dist.toFixed(2);
+  distLabel = dist > 1000
+    ? ` (${(dist / 1000).toFixed(2)} กม.)`
+    : ` (${Math.round(dist)} ม.)`;
 }
-
-  const lid = L.stamp(layer);
-  const lid = L.stamp(layer);
-  layerStore[lid] = layer;
-  layer.subId = subId;
-
-  layer.feature = layer.feature || { type: "Feature", properties: props || {} };
-
-}
-  const lid = L.stamp(layer);
-            const lid = L.stamp(layer); layerStore[lid] = layer; layer.subId = subId; 
-            layer.feature = layer.feature || { type: "Feature", properties: props || {} };
-
-            let distLabel = "";
-            if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
-                let dist = 0;
-                let latlngs = layer.getLatLngs();
-                if(Array.isArray(latlngs[0])) latlngs = latlngs.flat();
-                for(let i = 0; i < latlngs.length - 1; i++) dist += latlngs[i].distanceTo(latlngs[i+1]);
-                layer.feature.properties.distance = dist.toFixed(2);
-                distLabel = dist > 1000 ? `(${(dist/1000).toFixed(2)} กม.)` : `(${Math.round(dist)} ม.)`;
-            }
-
             const name = getSmartName(layer.feature.properties);
             const div = document.createElement('div'); div.className = 'layer-item'; div.id = 'row-' + lid;
             let iconHtml = '<i class="fa-solid fa-location-dot" style="color:#1a73e8"></i>';
