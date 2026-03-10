@@ -891,9 +891,8 @@
                         <div class="dropdown-item delete" onclick="askDeleteGroup('${id}', '${id}-menu')"><i class="fa-solid fa-trash"></i> ลบเลเยอร์</div>
                     </div>
                 </div>
-                <div class="sub-items" id="${subId}"></div>`;
+                <div id="${subId}" class="sub-items" style="display:none;"></div>`;
             document.getElementById('layer-list').appendChild(div);
-            selectLayerGroup(subId, div.querySelector('.group-header'));
             return subId;
         }
         function toggleSubItems(subId, iconEl) { const sub = document.getElementById(subId); if (sub.style.display === 'none') { sub.style.display = 'block'; iconEl.innerText = '▼'; } else { sub.style.display = 'none'; iconEl.innerText = '▶'; } }
