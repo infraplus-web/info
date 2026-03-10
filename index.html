@@ -878,7 +878,7 @@
             const subId = 'sub-' + id;
             const div = document.createElement('div'); div.className = 'layer-group'; div.id = id;
             div.innerHTML = `
-                <div class="group-header active-target" onclick="selectLayerGroup('${subId}', this)">
+                <div class="group-header" onclick="selectLayerGroup('${subId}', this)">
                     <div class="group-toggle-icon" onclick="event.stopPropagation(); toggleSubItems('${subId}', this)">▼</div>
                     <input type="checkbox" checked onclick="event.stopPropagation(); toggleAll('${subId}', this.checked)" style="margin-right:10px; cursor:pointer;">
                     <span class="group-title">${name}</span>
