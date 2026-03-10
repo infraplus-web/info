@@ -946,9 +946,10 @@
             
             setTimeout(()=> { layer.openPopup(); enableEdit(L.stamp(layer)); }, 200);
         }
+function setupLayer(layer, subId, props) {
 
-        function setupLayer(layer, subId, props) {
-if (props?.road_code && layer.bindTooltip) {
+  // แสดง road_code บนเส้น
+  if (props?.road_code && layer.bindTooltip) {
     layer.bindTooltip(
       `${props.road_code} (${props.length_km} กม.)`,
       {
@@ -966,6 +967,13 @@ if (props?.road_code && layer.bindTooltip) {
     }
   });
 
+  const lid = L.stamp(layer);
+  layerStore[lid] = layer;
+  layer.subId = subId;
+
+  layer.feature = layer.feature || { type: "Feature", properties: props || {} };
+
+}
   const lid = L.stamp(layer);
             const lid = L.stamp(layer); layerStore[lid] = layer; layer.subId = subId; 
             layer.feature = layer.feature || { type: "Feature", properties: props || {} };
