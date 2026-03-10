@@ -15,6 +15,20 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
     <style>
+        /* --- ROAD LABEL --- */
+.road-code-label {
+  background: rgba(255,255,255,0.85);
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #000;
+  font-size: 11px;
+  font-weight: bold;
+  padding: 1px 4px;
+}
+
+.road-code-label:before {
+  display: none;
+}
         /* --- GLOBAL --- */
         body, html { 
             margin: 0; padding: 0; height: 100%; width: 100%; 
@@ -934,9 +948,13 @@
         }
 
         function setupLayer(layer, subId, props) {
-            if (!map.hasLayer(layer)) { layer.addTo(map); }
-            if (layer instanceof L.Path && props._color) { layer.setStyle({ color: props._color, fillColor: props._color }); }
-
+           if (props?.road_code && layer.bindTooltip) {
+  layer.bindTooltip(props.road_code, {
+    permanent: true,
+    direction: "center",
+    className: "road-code-label"
+  });
+}
             const lid = L.stamp(layer); layerStore[lid] = layer; layer.subId = subId; 
             layer.feature = layer.feature || { type: "Feature", properties: props || {} };
 
