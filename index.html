@@ -484,6 +484,7 @@
         const dbClient = supabase.createClient(MY_PROJECT_URL, MY_API_KEY);
 
         let map, currentProjId = null, layerStore = {}, clickMarker, exportTargetGroupId;
+const groupLayerStore = {};
         let selectedSubId = null, currentTableGroup = null, currentTableSubId = null;
         let measureControl;
         let streetViewPanorama;
@@ -851,7 +852,55 @@
             if(mapState && mapState.lat) map.setView([mapState.lat, mapState.lng], mapState.zoom);
             else map.setView([13.7563, 100.5018], 11);
 
-            if(dataFeatures.length > 0) {
+            if (dataFeatures.length > 0) {
+  const groups = {};
+  const allLayers = [];
+
+  dataFeatures.forEach(f => {
+    const g = f.properties._layerName || "นำเข้า";
+    if (!groups[g]) groups[g] = [];
+    groups[g].push(f);
+  });
+
+  for (let g in groups) {
+    const subId = createGroupUI(g);
+
+    const gj = L.geoJSON(groups[g], {
+      onEachFeature: (f, l) => {
+        setupLayer(l, subId, f.properties);
+      },
+      pointToLayer: function (feature, latlng) {
+        return createCustomMarker(latlng, feature.properties._color || '#1a73e8');
+      },
+      style: (f) => ({
+        color: f.properties._color || '#3388ff',
+        fillColor: f.properties._color || '#3388ff'
+      })
+    });
+
+    groupLayerStore[subId] = gj;
+
+    const isVisible = groups[g].some(f => f.properties?._visible !== false);
+    const checkbox = document.querySelector(`input[onclick*="toggleAll('${subId}'"]`);
+
+    if (checkbox) checkbox.checked = isVisible;
+
+    if (isVisible) {
+      gj.addTo(map);
+      gj.eachLayer(l => allLayers.push(l));
+    }
+  }
+
+  if (allLayers.length > 0) {
+    const fg = L.featureGroup(allLayers);
+    if (fg.getBounds().isValid()) {
+      map.fitBounds(fg.getBounds(), { padding: [40, 40] });
+    }
+  }
+
+} else {
+  createGroupUI("เลเยอร์ 1");
+}
                 const groups = {};
                 dataFeatures.forEach(f => { const g = f.properties._layerName || "นำเข้า"; if(!groups[g]) groups[g] = []; groups[g].push(f); });
                 for(let g in groups) {
@@ -880,7 +929,7 @@
             div.innerHTML = `
                 <div class="group-header" onclick="selectLayerGroup('${subId}', this)">
                     <div class="group-toggle-icon" onclick="event.stopPropagation(); toggleSubItems('${subId}', this)">▼</div>
-                    <input type="checkbox" checked onclick="event.stopPropagation(); toggleAll('${subId}', this.checked)" style="margin-right:10px; cursor:pointer;">
+                    <input type="checkbox" onclick="event.stopPropagation(); toggleAll('${subId}', this.checked)" style="margin-right:10px; cursor:pointer;">
                     <span class="group-title">${name}</span>
                     <div class="group-actions"><div class="menu-dots" onclick="event.stopPropagation(); toggleMenu('${id}-menu')"><i class="fa-solid fa-ellipsis-vertical"></i></div></div>
                     <div id="${id}-menu" class="dropdown-menu">
@@ -899,7 +948,31 @@
         function toggleMenu(menuId) { const menu = document.getElementById(menuId); const isVisible = menu.style.display === 'block'; document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none'); if (!isVisible) menu.style.display = 'block'; }
         document.addEventListener('click', function(e) { if (!e.target.closest('.group-header')) document.querySelectorAll('.dropdown-menu').forEach(m => m.style.display = 'none'); });
         function selectLayerGroup(subId, headerElement) { document.querySelectorAll('.group-header').forEach(el => el.classList.remove('active-target')); headerElement.classList.add('active-target'); selectedSubId = subId; }
-        function toggleAll(subId, checked) { document.getElementById(subId).querySelectorAll('input[type="checkbox"]').forEach(cb => { cb.checked = checked; cb.dispatchEvent(new Event('change')); }); }
+        function toggleAll(subId, checked) {
+  const group = groupLayerStore[subId];
+  if (!group) return;
+
+  if (checked) {
+    group.addTo(map);
+  } else {
+    map.removeLayer(group);
+  }
+
+  group.eachLayer(layer => {
+    if (!layer.feature) return;
+    if (!layer.feature.properties) layer.feature.properties = {};
+    layer.feature.properties._visible = checked;
+  });
+
+  const sub = document.getElementById(subId);
+  if (sub) {
+    sub.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+      cb.checked = checked;
+    });
+  }
+
+  autoSave();
+}
 
         let renameTargetId = null;
         function renameGroupUI(id, menuId) {
