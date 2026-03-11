@@ -901,17 +901,6 @@ const groupLayerStore = {};
 } else {
   createGroupUI("เลเยอร์ 1");
 }
-                const groups = {};
-                dataFeatures.forEach(f => { const g = f.properties._layerName || "นำเข้า"; if(!groups[g]) groups[g] = []; groups[g].push(f); });
-                for(let g in groups) {
-                    const subId = createGroupUI(g);
-                    L.geoJSON(groups[g], { 
-                        onEachFeature: (f,l) => setupLayer(l, subId, f.properties),
-                        pointToLayer: function (feature, latlng) { return createCustomMarker(latlng, feature.properties._color || '#1a73e8'); },
-                        style: (f) => ({ color: f.properties._color || '#3388ff', fillColor: f.properties._color || '#3388ff' })
-                    });
-                }
-            } else { createGroupUI("เลเยอร์ 1"); }
             recordHistory();
             document.getElementById('dashboard-view').style.display = 'none';
             document.getElementById('map-view').style.display = 'flex';
