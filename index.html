@@ -297,22 +297,6 @@
         <div class="status-dot" id="save-dot"></div>
         <span id="save-text">สถานะการบันทึก</span>
     </div>
-    <div class="summary-panel">
-
-<h3>สรุปจำนวนเส้นทั้งหมดในโปรเจกต์</h3>
-
-<div>เส้นทั้งหมด: <span id="count-total">0</span></div>
-
-<div>🔵 สีน้ำเงิน: <span id="count-blue">0</span></div>
-<div>🟢 สีเขียว: <span id="count-green">0</span></div>
-<div>🟡 สีเหลือง: <span id="count-yellow">0</span></div>
-<div>🔴 สีแดง: <span id="count-red">0</span></div>
-<div>🟣 สีม่วง: <span id="count-purple">0</span></div>
-
-<div>⚪ ไม่ระบุสี: <span id="count-unknown">0</span></div>
-
-</div>
-
     <div id="toast-notify" class="toast-notification">
         <div class="toast-icon"><i class="fa-solid fa-circle-check"></i></div>
         <div class="toast-content">
@@ -803,18 +787,25 @@ function updateProjectSummary() {
             map.addControl(new CustomControls());
 
             function resetTools() {
-                document.querySelectorAll('.custom-hand-btn, .btn-split-tool').forEach(b => b.classList.remove('active'));
-                document.getElementById('map').style.cursor = '';
-                document.getElementById('map').classList.remove('scissors-cursor');
-                isSplitMode = false;
-                if(highlightLayer) { map.removeLayer(highlightLayer); highlightLayer = null; }
-                
-                // 2. FIX: AGGRESSIVE MEASURE TOOL KILL
-                if(measureControl && measureControl._measuring) {
-                    measureControl._toggleMeasure(); 
-                }
-            }
+  document.querySelectorAll('.custom-hand-btn, .btn-split-tool').forEach(b => b.classList.remove('active'));
 
+  const mapEl = document.getElementById('map');
+  if (mapEl) {
+    mapEl.style.cursor = '';
+    mapEl.classList.remove('scissors-cursor');
+  }
+
+  isSplitMode = false;
+
+  if (highlightLayer && map) {
+    map.removeLayer(highlightLayer);
+    highlightLayer = null;
+  }
+
+  if (measureControl && measureControl._measuring) {
+    measureControl._toggleMeasure();
+  }
+}
             map.pm.addControls({ 
                 position: 'topleft', 
                 drawCircle: true, drawCircleMarker: false, drawRectangle: true, drawPolygon: true, drawPolyline: true, drawMarker: true,
@@ -1196,9 +1187,20 @@ function applyLayerStatus(layer, status) {
   layer.feature.properties.color = status;
   layer.feature.properties._color = STATUS_COLOR_MAP[status] || STATUS_COLOR_MAP.blue;
 
-  if (layer.setStyle) {
+  if (layer instanceof L.Marker) {
+    const color = STATUS_COLOR_MAP[status] || STATUS_COLOR_MAP.blue;
+    const svgIcon = L.divIcon({
+      className: 'custom-div-icon',
+      html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36" fill="${color}" stroke="#ffffff" stroke-width="1.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`,
+      iconSize: [36, 36],
+      iconAnchor: [18, 36],
+      popupAnchor: [0, -36]
+    });
+    layer.setIcon(svgIcon);
+  } else if (layer.setStyle) {
     layer.setStyle({
-      color: STATUS_COLOR_MAP[status] || STATUS_COLOR_MAP.blue
+      color: STATUS_COLOR_MAP[status] || STATUS_COLOR_MAP.blue,
+      fillColor: STATUS_COLOR_MAP[status] || STATUS_COLOR_MAP.blue
     });
   }
 }
@@ -1224,56 +1226,8 @@ function loadStatusFromLocal(layer) {
 
   applyLayerStatus(layer, savedStatus);
 }
-
 function updateSummaryCounts() {
-  let counts = {
-    blue: 0,
-    green: 0,
-    yellow: 0,
-    red: 0,
-    purple: 0,
-    unknown: 0
-  };
-
-  for (let lid in layerStore) {
-    const layer = layerStore[lid];
-    if (!layer || !layer.feature || !layer.feature.properties) continue;
-
-    const status = layer.feature.properties.status || layer.feature.properties.color || "blue";
-
-    if (counts[status] !== undefined) {
-      counts[status]++;
-    } else {
-      counts.unknown++;
-    }
-  }
-
-  console.log("Summary counts:", counts);
-
-// TODO: เปลี่ยน selector ให้ตรงกับ HTML panel ข้างซ้ายของจริง
-const elBlue = document.getElementById("count-blue");
-const elGreen = document.getElementById("count-green");
-const elYellow = document.getElementById("count-yellow");
-const elRed = document.getElementById("count-red");
-const elPurple = document.getElementById("count-purple");
-const elUnknown = document.getElementById("count-unknown");
-const elTotal = document.getElementById("count-total");
-
-if (elBlue) elBlue.textContent = counts.blue;
-if (elGreen) elGreen.textContent = counts.green;
-if (elYellow) elYellow.textContent = counts.yellow;
-if (elRed) elRed.textContent = counts.red;
-if (elPurple) elPurple.textContent = counts.purple;
-if (elUnknown) elUnknown.textContent = counts.unknown;
-
-if (elTotal) {
-  elTotal.textContent =
-    counts.blue +
-    counts.green +
-    counts.yellow +
-    counts.red +
-    counts.purple +
-    counts.unknown;
+  updateProjectSummary();
 }
 function setRoadStatus(layer, newStatus = null) {
   const currentStatus =
@@ -1285,11 +1239,15 @@ function setRoadStatus(layer, newStatus = null) {
 
   applyLayerStatus(layer, statusToApply);
   saveStatusToLocal(layer);
-  updateSummaryCounts();
+  updateProjectSummary();
 }
         window.toggleLayer = function(lid, checked) { if (checked) map.addLayer(layerStore[lid]); else map.removeLayer(layerStore[lid]); };
-        function handleDelete(layer) { const row = document.getElementById('row-' + L.stamp(layer)); if(row) row.remove(); delete layerStore[L.stamp(layer)]; }
-
+        function handleDelete(layer) {
+  const row = document.getElementById('row-' + L.stamp(layer));
+  if (row) row.remove();
+  delete layerStore[L.stamp(layer)];
+  updateProjectSummary();
+}
         function getNextIndex(baseName) {
             let maxIndex = 0;
             const regex = new RegExp(`^${baseName}\\s(\\d+)$`);
@@ -1552,8 +1510,68 @@ function setRoadStatus(layer, newStatus = null) {
             }
         }
         function importToLayer(subId, menuId) { selectedSubId = subId; document.getElementById(menuId).style.display = 'none'; document.getElementById('layerFileInput').click(); }
-        function finishImport(g, subId) { const grp = L.featureGroup(); const features = Array.isArray(g) ? g : (g.features || [g]); L.geoJSON(features, { pointToLayer: function (feature, latlng) { return createCustomMarker(latlng, '#1a73e8'); }, onEachFeature:(f,l)=>{ f.properties._layerName = document.getElementById(subId).previousElementSibling.querySelector('.group-title').innerText; setupLayer(l,subId,f.properties); grp.addLayer(l); } }); if(grp.getLayers().length) map.fitBounds(grp.getBounds()); showLoader(false); recordHistory(); }
-        function processTabularData(data, targetId) { if (data.length === 0) { showLoader(false); return; } const keys = Object.keys(data[0]); const latKey = keys.find(k => /^(lat|latitude|y)$/i.test(k.trim())); const lonKey = keys.find(k => /^(lon|lng|long|longitude|x)$/i.test(k.trim())); if (!latKey || !lonKey) { alert("ไม่พบคอลัมน์พิกัด (เช่น lat, lon)"); showLoader(false); return; } let count = 0; data.forEach(row => { const lat = parseFloat(row[latKey]); const lng = parseFloat(row[lonKey]); if (!isNaN(lat) && !isNaN(lng)) { const marker = createCustomMarker([lat, lng], '#1a73e8'); row._layerName = document.getElementById(targetId).previousElementSibling.querySelector('.group-title').innerText; setupLayer(marker, targetId, row); count++; } }); showLoader(false); if(count === 0) alert("ไม่พบข้อมูลพิกัด"); recordHistory(); }
+        function finishImport(g, subId) {
+  const grp = L.featureGroup();
+  const features = Array.isArray(g) ? g : (g.features || [g]);
+
+  L.geoJSON(features, {
+    pointToLayer: function (feature, latlng) {
+      return createCustomMarker(latlng, '#1a73e8');
+    },
+    onEachFeature: (f, l) => {
+      f.properties._layerName = document.getElementById(subId).previousElementSibling.querySelector('.group-title').innerText;
+      setupLayer(l, subId, f.properties);
+      grp.addLayer(l);
+    }
+  });
+
+  if (grp.getLayers().length) {
+    map.fitBounds(grp.getBounds());
+  }
+
+  showLoader(false);
+  updateProjectSummary();
+  recordHistory();
+}
+        function processTabularData(data, targetId) {
+  if (data.length === 0) {
+    showLoader(false);
+    return;
+  }
+
+  const keys = Object.keys(data[0]);
+  const latKey = keys.find(k => /^(lat|latitude|y)$/i.test(k.trim()));
+  const lonKey = keys.find(k => /^(lon|lng|long|longitude|x)$/i.test(k.trim()));
+
+  if (!latKey || !lonKey) {
+    alert("ไม่พบคอลัมน์พิกัด (เช่น lat, lon)");
+    showLoader(false);
+    return;
+  }
+
+  let count = 0;
+
+  data.forEach(row => {
+    const lat = parseFloat(row[latKey]);
+    const lng = parseFloat(row[lonKey]);
+
+    if (!isNaN(lat) && !isNaN(lng)) {
+      const marker = createCustomMarker([lat, lng], '#1a73e8');
+      row._layerName = document.getElementById(targetId).previousElementSibling.querySelector('.group-title').innerText;
+      setupLayer(marker, targetId, row);
+      count++;
+    }
+  });
+
+  showLoader(false);
+
+  if (count === 0) {
+    alert("ไม่พบข้อมูลพิกัด");
+  }
+
+  updateProjectSummary();
+  recordHistory();
+}
         function convertDMSToDD(degrees, minutes, seconds, direction) { let dd = degrees + minutes / 60 + seconds / (60 * 60); if (direction == "S" || direction == "W") dd = dd * -1; return dd; }
         
         function openGlobalExportModal() {
@@ -1770,7 +1788,7 @@ function createSimplePopup(t, d, l) {
   `;
 }
 
-window.onload = initDashboard;;
+window.onload = initDashboard;
 </script>
 </body>
 </html>
