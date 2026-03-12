@@ -1755,6 +1755,11 @@ function createPopup(layer, name) {
     <div class="popup-body">
       <textarea class="popup-desc-inp" id="pd-${lid}" readonly>${desc}</textarea>
     </div>
+    <div class="popup-footer">
+      <i class="fa-solid fa-pen pop-icon" title="แก้ไข" onclick="enableEdit(${lid})"></i>
+      <i class="fa-solid fa-floppy-disk pop-icon" title="บันทึก" onclick="saveEdit(${lid})"></i>
+      <i class="fa-solid fa-trash pop-icon" title="ลบ" onclick="deleteFeature(${lid})"></i>
+    </div>
   `;
 }
 
@@ -1772,11 +1777,55 @@ function changeColor(lid, c) {
 function saveEdit(lid) {
   const l = layerStore[lid];
   if (!l) return;
-}
 
-function deleteFeature(lid) {
+  const titleEl = document.getElementById(`pt-${lid}`);
+  const descEl = document.getElementById(`pd-${lid}`);
+
+  const newName = titleEl ? titleEl.value.trim() : "";
+  const newDesc = descEl ? descEl.value.trim() : "";
+
+  if (!l.feature) l.feature = {};
+  if (!l.feature.properties) l.feature.properties = {};
+
+  l.feature.properties.name = newName || "ไม่มีชื่อ";
+  l.feature.properties.description = newDesc;
+
+  const labelEl = document.getElementById(`lbl-${lid}`);
+  if (labelEl) {
+    let iconHtml = '<i class="fa-solid fa-location-dot" style="color:#1a73e8"></i>';
+    if (l instanceof L.Polyline) iconHtml = '<i class="fa-solid fa-route" style="color:#1a73e8"></i>';
+
+    let distLabel = "";
+    if (l.feature.properties.distance) {
+      const dist = parseFloat(l.feature.properties.distance);
+      distLabel = dist > 1000
+        ? ` <span style="font-size:11px;color:#666">(${(dist / 1000).toFixed(2)} กม.)</span>`
+        : ` <span style="font-size:11px;color:#666">(${Math.round(dist)} ม.)</span>`;
+    }
+
+    labelEl.innerHTML = `${iconHtml} ${newName || "ไม่มีชื่อ"}${distLabel}`;
+  }
+
+  titleEl?.setAttribute("readonly", true);
+  descEl?.setAttribute("readonly", true);
+
+  updateProjectSummary();
+  recordHistory();
+  showModernSuccess("บันทึกแล้ว", "อัปเดตข้อมูลเรียบร้อย");
+}
+        function deleteFeature(lid) {
   const layer = layerStore[lid];
   if (!layer) return;
+
+  showModal("ลบข้อมูล", "ยืนยันการลบรายการนี้?", true, () => {
+    if (map.hasLayer(layer)) {
+      map.removeLayer(layer);
+    }
+
+    handleDelete(layer);
+    recordHistory();
+    showModernSuccess("ลบแล้ว", "ลบข้อมูลเรียบร้อย");
+  });
 }
 
 function createSimplePopup(t, d, l) {
