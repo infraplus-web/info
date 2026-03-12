@@ -1705,81 +1705,106 @@ function setRoadStatus(layer, newStatus = null) {
             toast.classList.add('show'); setTimeout(() => { toast.classList.remove('show'); }, 3000);
         }
 
-        // --- CORE SAVE FUNCTION ---
-        const geojson = layer.toGeoJSON();
+   async function confirmSave() {
 
-geojson.properties = {
-  ...layer.feature.properties,
-  _color: layer.feature.properties._color
-};
-            
-            const btn = document.getElementById('btnConfirmSave'); 
-            const spinner = document.getElementById('btn-spinner');
-            const btnText = document.getElementById('btn-text');
-            
-            btn.disabled = true; spinner.style.display = 'block'; btnText.innerText = "กำลังบันทึก...";
-
-            const mapState = { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() };
-            const layersData = [];
-            if (typeof layerStore !== 'undefined') {
-                for (let id in layerStore) {
-
-  const layer = layerStore[id];
-  const gid = layer.subId || 'Uncategorized';
-
-  let title = "Group " + gid;
-
-  try {
-    const el = document.getElementById(gid);
-    if (el && el.previousElementSibling)
-      title = el.previousElementSibling.querySelector('.group-title').innerText;
-  } catch(e){}
-
+  // --- CORE SAVE FUNCTION ---
   const geojson = layer.toGeoJSON();
 
   geojson.properties = {
     ...layer.feature.properties,
-    _color: layer.feature.properties._color || "#3388ff"
+    _color: layer.feature.properties._color
   };
 
-  layersData.push({
-    id: gid,
-    name: title,
-    features: geojson
-  });
+  const btn = document.getElementById('btnConfirmSave');
+  const spinner = document.getElementById('btn-spinner');
+  const btnText = document.getElementById('btn-text');
+
+  btn.disabled = true;
+  spinner.style.display = 'block';
+  btnText.innerText = "กำลังบันทึก...";
+
+  const mapState = {
+    lat: map.getCenter().lat,
+    lng: map.getCenter().lng,
+    zoom: map.getZoom()
+  };
+
+  const layersData = [];
+
+  if (typeof layerStore !== "undefined") {
+    for (let id in layerStore) {
+
+      const layer = layerStore[id];
+      const gid = layer.subId || 'Uncategorized';
+
+      let title = "Group " + gid;
+
+      try {
+        const el = document.getElementById(gid);
+        if (el && el.previousElementSibling)
+          title = el.previousElementSibling.querySelector('.group-title').innerText;
+      } catch(e){}
+
+      const geojson = layer.toGeoJSON();
+
+      geojson.properties = {
+        ...layer.feature.properties,
+        _color: layer.feature.properties._color || "#3388ff"
+      };
+
+      layersData.push({
+        id: gid,
+        name: title,
+        features: geojson
+      });
+    }
+  }
+
+  try {
+
+    let errorData, resultData;
+
+    if (currentProjId) {
+
+      const { data, error } = await dbClient.from('projects')
+        .update({
+          name: projectName,
+          map_state: mapState,
+          layers: layersData
+        })
+        .eq('id', currentProjId)
+        .select();
+
+      errorData = error;
+      resultData = data;
+
+    } else {
+
+      const { data, error } = await dbClient.from('projects')
+        .insert([{
+          name: projectName,
+          map_state: mapState,
+          layers: layersData
+        }])
+        .select();
+
+      errorData = error;
+      resultData = data;
+
+    }
+
+    if (errorData) throw errorData;
+
+    if (resultData && resultData.length > 0)
+      currentProjId = resultData[0].id;
+
+  } catch (err) {
+
+    console.error(err);
+
+  }
 
 }
-            }
-
-            try {
-                let errorData, resultData;
-                if (currentProjId) {
-                    const { data, error } = await dbClient.from('projects')
-                        .update({ name: projectName, map_state: mapState, layers: layersData })
-                        .eq('id', currentProjId).select();
-                    errorData = error; resultData = data;
-                } else {
-                    const { data, error } = await dbClient.from('projects')
-                        .insert([{ name: projectName, map_state: mapState, layers: layersData }]).select();
-                    errorData = error; resultData = data;
-                }
-
-                if (errorData) throw errorData;
-                
-                if(resultData && resultData.length > 0) currentProjId = resultData[0].id;
-
-                document.getElementById('proj-name').value = projectName;
-                closeSaveModal();
-                showModernSuccess("บันทึกสำเร็จ!", "ข้อมูลของคุณถูกจัดเก็บเรียบร้อยแล้ว");
-                btn.disabled = false; spinner.style.display = 'none'; btnText.innerText = "บันทึกทันที";
-                recordHistory();
-
-            } catch (err) {
-                console.error(err); 
-                alert("❌ บันทึกไม่ได้: " + err.message + "\n(อย่าลืมรัน SQL ใน Supabase เพื่อแก้ Policy!)"); 
-                btnText.innerText = "ลองใหม่"; btn.disabled = false; spinner.style.display = 'none';
-            }
-        }
 
       async function autoSave() {
   if (!currentProjId) return;
