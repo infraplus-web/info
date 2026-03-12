@@ -1829,39 +1829,24 @@ function changeColor(lid, color) {
   const layer = layerStore[lid];
   if (!layer) return;
 
-  const colorMap = {
-    blue: "#1a73e8",
-    green: "#34a853",
-    yellow: "#fbbc05",
-    red: "#ea4335",
-    purple: "#9c27b0"
-  };
-
-  const hex = colorMap[color] || "#1a73e8";
-
-  // เปลี่ยนสีเส้น
-  if (layer.setStyle) {
-    layer.setStyle({
-      color: hex,
-      weight: 5
-    });
-  }
-
-  // บันทึกสีใน properties
+  // สร้าง feature ถ้ายังไม่มี
   if (!layer.feature) layer.feature = {};
   if (!layer.feature.properties) layer.feature.properties = {};
 
-  layer.feature.properties.color = color;
+  // บันทึก status
   layer.feature.properties.status = color;
+  layer.feature.properties.color = color;
 
-  // save ลง local storage
+  // ใช้ระบบ status เดิมของระบบ
+  setRoadStatus(layer, color);
+
+  // บังคับ save
   saveStatusToLocal(layer);
 
-  // update summary
+  // update counter
   updateSummaryCounts();
 
 }
-
 function saveEdit(lid) {
   const l = layerStore[lid];
   if (!l) return;
