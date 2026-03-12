@@ -1671,7 +1671,7 @@ function setRoadStatus(layer, newStatus = null) {
         function downloadFile(content, fileName, mimeType) { const blob = new Blob(["\uFEFF"+content], {type:mimeType}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = fileName; a.click(); }
 
         // --- SAVE SYSTEM ---
-        function saveProject() {
+        async function saveProject() {
             const modal = document.getElementById('saveModal'); const box = document.getElementById('saveModalBox');
             modal.style.display = 'flex';
             document.getElementById('saveIconContainer').innerHTML = '<i class="fa-solid fa-cloud-arrow-up"></i>';
