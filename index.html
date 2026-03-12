@@ -414,9 +414,14 @@
                         <i class="fa-solid fa-upload"></i> นำเข้าข้อมูล (เลือกหลายไฟล์ได้)
                     </div>
                     
-                    <div class="action-row" onclick="openGlobalExportModal()">
-                        <i class="fa-solid fa-download"></i> ส่งออกข้อมูลทั้งหมด (Export All)
-                    </div>
+     <div class="action-row" onclick="openGlobalExportModal()">
+  <i class="fa-solid fa-download"></i> ส่งออกข้อมูลทั้งหมด (Export All)
+</div>
+
+<div id="project-summary-box" style="margin:10px 0; padding:10px; background:#fff; border:1px solid #dcdfe6; border-radius:8px; font-size:13px;">
+  <div style="font-weight:700; margin-bottom:8px;">สรุปจำนวนเส้นทั้งโปรเจกต์</div>
+  <div id="project-summary-content">ยังไม่มีข้อมูล</div>
+</div>
                     
                     <input type="file" id="fileInput" multiple accept=".zip,.kml,.json,.geojson,.csv,.xlsx,.xls,.jpg,.jpeg,.png" style="display:none;" onchange="handleMultipleImports(this.files, null)">
                     <input type="file" id="layerFileInput" multiple accept=".zip,.kml,.json,.geojson,.csv,.xlsx,.xls,.jpg,.jpeg,.png" style="display:none;" onchange="handleMultipleImports(this.files, selectedSubId)">
@@ -497,6 +502,58 @@ const groupLayerStore = {};
         let historyStack = [];
         let historyIndex = -1;
         let isRestoringHistory = false;
+
+        function getColorLabel(color) {
+  const c = (color || "").toLowerCase();
+
+  if (c === "#3388ff" || c === "#1a73e8" || c === "blue") return "สีฟ้า";
+  if (c === "green" || c === "#008000" || c === "#2e8b57") return "สีเขียว";
+  if (c === "yellow" || c === "#ffff00" || c === "#ffd700") return "สีเหลือง";
+  if (c === "red" || c === "#ff0000" || c === "#dc3545") return "สีแดง";
+
+  return "ไม่ระบุสี";
+}
+
+function updateProjectSummary() {
+  const el = document.getElementById("project-summary-content");
+  if (!el) return;
+
+  const colorCount = {
+    "สีฟ้า": 0,
+    "สีเขียว": 0,
+    "สีเหลือง": 0,
+    "สีแดง": 0,
+    "ไม่ระบุสี": 0
+  };
+
+  let total = 0;
+  let changed = 0;
+
+  Object.values(layerStore).forEach(layer => {
+    if (!layer || !layer.feature || !layer.feature.properties) return;
+
+    const props = layer.feature.properties;
+    const color = props._color || "#3388ff";
+    const label = getColorLabel(color);
+
+    total++;
+    colorCount[label] = (colorCount[label] || 0) + 1;
+
+    if (props._originalColor && props._originalColor !== color) {
+      changed++;
+    }
+  });
+
+  el.innerHTML = `
+    <div>เส้นทั้งหมด: <b>${total}</b></div>
+    <div>🔵 สีฟ้า: <b>${colorCount["สีฟ้า"]}</b></div>
+    <div>🟢 สีเขียว: <b>${colorCount["สีเขียว"]}</b></div>
+    <div>🟡 สีเหลือง: <b>${colorCount["สีเหลือง"]}</b></div>
+    <div>🔴 สีแดง: <b>${colorCount["สีแดง"]}</b></div>
+    <div>⚪ ไม่ระบุสี: <b>${colorCount["ไม่ระบุสี"]}</b></div>
+    <div>✏️ เส้นที่เปลี่ยนสี: <b>${changed}</b></div>
+  `;
+}
 
         function recordHistory() {
             if(isRestoringHistory) return;
@@ -901,11 +958,12 @@ const groupLayerStore = {};
 } else {
   createGroupUI("เลเยอร์ 1");
 }
-            recordHistory();
-            document.getElementById('dashboard-view').style.display = 'none';
-            document.getElementById('map-view').style.display = 'flex';
-            window.scrollTo(0, 0);
-            setTimeout(() => { map.invalidateSize(); showLoader(false); }, 500);
+         recordHistory();
+updateProjectSummary();
+document.getElementById('dashboard-view').style.display = 'none';
+document.getElementById('map-view').style.display = 'flex';
+window.scrollTo(0, 0);
+setTimeout(() => { map.invalidateSize(); showLoader(false); }, 500);
         }
 
         function saveAndExit() { initDashboard(); }
@@ -1030,6 +1088,9 @@ function setupLayer(layer, subId, props) {
   layerStore[lid] = layer;
   layer.subId = subId;
   layer.feature = layer.feature || { type: "Feature", properties: props || {} };
+    if (!layer.feature.properties._originalColor) {
+  layer.feature.properties._originalColor = layer.feature.properties._color || "#3388ff";
+}
 
 let distLabel = "";
 if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
