@@ -1250,22 +1250,31 @@ function updateSummaryCounts() {
 
   console.log("Summary counts:", counts);
 
-  // TODO: เปลี่ยน selector ให้ตรงกับ HTML panel ซ้ายของจริง
-  const elBlue = document.getElementById("count-blue");
-  const elGreen = document.getElementById("count-green");
-  const elYellow = document.getElementById("count-yellow");
-  const elRed = document.getElementById("count-red");
-  const elPurple = document.getElementById("count-purple");
-  const elUnknown = document.getElementById("count-unknown");
+// TODO: เปลี่ยน selector ให้ตรงกับ HTML panel ข้างซ้ายของจริง
+const elBlue = document.getElementById("count-blue");
+const elGreen = document.getElementById("count-green");
+const elYellow = document.getElementById("count-yellow");
+const elRed = document.getElementById("count-red");
+const elPurple = document.getElementById("count-purple");
+const elUnknown = document.getElementById("count-unknown");
+const elTotal = document.getElementById("count-total");
 
-  if (elBlue) elBlue.textContent = counts.blue;
-  if (elGreen) elGreen.textContent = counts.green;
-  if (elYellow) elYellow.textContent = counts.yellow;
-  if (elRed) elRed.textContent = counts.red;
-  if (elPurple) elPurple.textContent = counts.purple;
-  if (elUnknown) elUnknown.textContent = counts.unknown;
+if (elBlue) elBlue.textContent = counts.blue;
+if (elGreen) elGreen.textContent = counts.green;
+if (elYellow) elYellow.textContent = counts.yellow;
+if (elRed) elRed.textContent = counts.red;
+if (elPurple) elPurple.textContent = counts.purple;
+if (elUnknown) elUnknown.textContent = counts.unknown;
+
+if (elTotal) {
+  elTotal.textContent =
+    counts.blue +
+    counts.green +
+    counts.yellow +
+    counts.red +
+    counts.purple +
+    counts.unknown;
 }
-
 function setRoadStatus(layer, newStatus = null) {
   const currentStatus =
     layer?.feature?.properties?.status ||
