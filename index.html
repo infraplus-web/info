@@ -1739,13 +1739,37 @@ function createPopup(layer, name) {
     </div>
   `;
 }
-        function enableEdit(lid) { document.getElementById(`pt-${lid}`).removeAttribute('readonly'); document.getElementById(`pt-${lid}`).focus(); document.getElementById(`pd-${lid}`).removeAttribute('readonly'); document.getElementById(`ps-${lid}`).style.display='inline'; document.getElementById(`cp-${lid}`).style.display='flex'; }
-        function changeColor(lid, c) { const l = layerStore[lid]; if(l instanceof L.Marker && l.options.icon.options.className === 'custom-div-icon') { l.setIcon(createCustomMarker(l.getLatLng(), c).options.icon); } else if(l.setStyle) { l.setStyle({color:c, fillColor:c}); } l.feature.properties._color = c; recordHistory(); }
-        function saveEdit(lid) { const l = layerStore[lid], n = document.getElementById(`pt-${lid}`).value; l.feature.properties.name = n; l.feature.properties.description = document.getElementById(`pd-${lid}`).value; document.getElementById(`lbl-${lid}`).innerHTML = `${(l instanceof L.Marker)?'<i class="fa-solid fa-location-dot" style="color:#1a73e8"></i>':'<i class="fa-solid fa-route" style="color:#1a73e8"></i>'} ${n}`; l.closePopup(); l.unbindPopup(); l.bindPopup(createPopup(l, n), {autoClose:true}).openPopup(); recordHistory(); }
-        function deleteFeature(lid) { showModal("ลบข้อมูล", "ยืนยันการลบ?", true, () => { const layer = layerStore[lid]; map.removeLayer(layer); const row = document.getElementById('row-' + lid); if(row) row.remove(); delete layerStore[lid]; closeModal(); recordHistory(); }); }
-        function createSimplePopup(t,d,l) { return `<div style="padding:5px;"><div style="font-weight:600;font-size:16px;">${t}</div><div style="font-size:12px;color:#666;margin:5px 0;line-height:1.4;">${d}</div><div style="color:#1a73e8;font-size:12px;">${l.lat.toFixed(5)}, ${l.lng.toFixed(5)}</div></div>`; }
 
-        window.onload = initDashboard;
-    </script>
+function enableEdit(lid) {
+  document.getElementById(`pt-${lid}`)?.removeAttribute("readonly");
+  document.getElementById(`pd-${lid}`)?.removeAttribute("readonly");
+  document.getElementById(`pt-${lid}`)?.focus();
+}
+
+function changeColor(lid, c) {
+  const l = layerStore[lid];
+  if (!l) return;
+}
+
+function saveEdit(lid) {
+  const l = layerStore[lid];
+  if (!l) return;
+}
+
+function deleteFeature(lid) {
+  const layer = layerStore[lid];
+  if (!layer) return;
+}
+
+function createSimplePopup(t, d, l) {
+  return `
+    <div style="padding:5px;">
+      <div style="font-weight:600;font-size:16px;">${t}</div>
+      <div style="font-size:12px;color:#666;margin:5px 0;">${d}</div>
+    </div>
+  `;
+}
+window.onload = initDashboard;
+</script>
 </body>
 </html>
