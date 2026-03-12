@@ -1726,11 +1726,19 @@ function setRoadStatus(layer, newStatus = null) {
     txt.innerText = 'บันทึกไม่สำเร็จ';
   }
 }
+function createPopup(layer, name) {
+  const lid = L.stamp(layer);
+  const desc = layer.feature?.properties?.description || "";
 
-        function createPopup(layer, name) {
-            const lid = L.stamp(layer); const desc = layer.feature.properties.description || "";
-            return `<div class="popup-header"><input class="popup-title-inp" id="pt-${lid}" value="${name}" readonly></div><div class="popup-body"><textarea class="popup-desc-inp" id="pd-${lid}" readonly placeholder="เพิ่มคำอธิบาย...">${desc}</textarea><div class="color-picker-row" id="cp-${lid}" style="display:none;"><div class="color-circle" style="background:#1a73e8" onclick="changeColor(${lid}, '#1a73e8')"></div><div class="color-circle" style="background:#d93025" onclick="changeColor(${lid}, '#d93025')"></div><div class="color-circle" style="background:#f9ab00" onclick="changeColor(${lid}, '#f9ab00')"></div><div class="color-circle" style="background:#1e8e3e" onclick="changeColor(${lid}, '#1e8e3e')"></div><input type="color" onchange="changeColor(${lid}, this.value)" style="width:30px; border:none; background:none; cursor:pointer;"></div></div><div class="popup-footer"><i class="fa-solid fa-pen pop-icon" title="แก้ไข" onclick="enableEdit(${lid})"></i><i class="fa-solid fa-trash pop-icon del" title="ลบ" onclick="deleteFeature(${lid})"></i><i class="fa-solid fa-check pop-icon" id="ps-${lid}" style="display:none; color:#1e8e3e" onclick="saveEdit(${lid})"></i></div>`;
-        }
+  return `
+    <div class="popup-header">
+      <input class="popup-title-inp" id="pt-${lid}" value="${name}" readonly />
+    </div>
+    <div class="popup-body">
+      <textarea class="popup-desc-inp" id="pd-${lid}" readonly>${desc}</textarea>
+    </div>
+  `;
+}
         function enableEdit(lid) { document.getElementById(`pt-${lid}`).removeAttribute('readonly'); document.getElementById(`pt-${lid}`).focus(); document.getElementById(`pd-${lid}`).removeAttribute('readonly'); document.getElementById(`ps-${lid}`).style.display='inline'; document.getElementById(`cp-${lid}`).style.display='flex'; }
         function changeColor(lid, c) { const l = layerStore[lid]; if(l instanceof L.Marker && l.options.icon.options.className === 'custom-div-icon') { l.setIcon(createCustomMarker(l.getLatLng(), c).options.icon); } else if(l.setStyle) { l.setStyle({color:c, fillColor:c}); } l.feature.properties._color = c; recordHistory(); }
         function saveEdit(lid) { const l = layerStore[lid], n = document.getElementById(`pt-${lid}`).value; l.feature.properties.name = n; l.feature.properties.description = document.getElementById(`pd-${lid}`).value; document.getElementById(`lbl-${lid}`).innerHTML = `${(l instanceof L.Marker)?'<i class="fa-solid fa-location-dot" style="color:#1a73e8"></i>':'<i class="fa-solid fa-route" style="color:#1a73e8"></i>'} ${n}`; l.closePopup(); l.unbindPopup(); l.bindPopup(createPopup(l, n), {autoClose:true}).openPopup(); recordHistory(); }
