@@ -1839,6 +1839,7 @@ function changeColor(lid, color) {
 
   const hex = colorMap[color] || "#1a73e8";
 
+  // เปลี่ยนสีเส้น
   if (layer.setStyle) {
     layer.setStyle({
       color: hex,
@@ -1846,12 +1847,19 @@ function changeColor(lid, color) {
     });
   }
 
+  // บันทึกสีใน properties
   if (!layer.feature) layer.feature = {};
   if (!layer.feature.properties) layer.feature.properties = {};
 
   layer.feature.properties.color = color;
+  layer.feature.properties.status = color;
 
-  updateProjectSummary();
+  // save ลง local storage
+  saveStatusToLocal(layer);
+
+  // update summary
+  updateSummaryCounts();
+
 }
 
 function saveEdit(lid) {
