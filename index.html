@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WEB GIS: Complete System (Final Perfected)</title>
+    <title>WEB GกIS: Complete System (Final Perfected)</title>
     
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
@@ -1091,6 +1091,7 @@ function setupLayer(layer, subId, props) {
     if (!layer.feature.properties._originalColor) {
   layer.feature.properties._originalColor = layer.feature.properties._color || "#3388ff";
 }
+loadStatusFromLocal(layer);
 
 let distLabel = "";
 if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
@@ -1118,15 +1119,21 @@ if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
             }};
             document.getElementById(subId).appendChild(div);
             layer.bindPopup(createPopup(layer, name), { autoClose: true, closeOnClick: false, autoPan: false });
-            
-            layer.on('click', e => { 
-                if (isSplitMode && (layer instanceof L.Polyline || layer instanceof L.Polygon)) {
-                    L.DomEvent.stopPropagation(e); splitLineAtPoint(layer, e.latlng); return;
-                }
-                if(!map.pm.globalDrawModeEnabled() && !map.pm.globalEditModeEnabled()) { 
-                    L.DomEvent.stopPropagation(e); showInfo(layer.feature.properties, e.latlng || getCenter(layer)); updateSV(e.latlng || getCenter(layer));
-                }
-            });
+layer.on('click', e => {
+    if (isSplitMode && (layer instanceof L.Polyline || layer instanceof L.Polygon)) {
+        L.DomEvent.stopPropagation(e);
+        splitLineAtPoint(layer, e.latlng);
+        return;
+    }
+
+    setRoadStatus(layer);
+
+    if (!map.pm.globalDrawModeEnabled() && !map.pm.globalEditModeEnabled()) {
+        L.DomEvent.stopPropagation(e);
+        showInfo(layer.feature.properties, e.latlng || getCenter(layer));
+        updateSV(e.latlng || getCenter(layer));
+    }
+});
 
             // 1. SPLIT VISUAL: GLOW ON HOVER
             layer.on('mouseover', e => {
@@ -1138,7 +1145,124 @@ if (layer instanceof L.Polyline && !(layer instanceof L.Polygon)) {
                  if (layer._path) L.DomUtil.removeClass(layer._path, 'cut-highlight');
             });
         }
+// =========================
+// STATUS / COLOR MANAGEMENT
+// =========================
 
+const STATUS_COLOR_MAP = {
+  blue: "#3388ff",
+  green: "#22c55e",
+  yellow: "#facc15",
+  red: "#ef4444",
+  purple: "#a855f7"
+};
+
+function getLayerRoadId(layer) {
+  return (
+    layer?.feature?.properties?.road_id ||
+    layer?.feature?.properties?.id ||
+    layer?.subId ||
+    L.stamp(layer)
+  );
+}
+
+function getNextStatus(currentStatus) {
+  const order = ["blue", "green", "yellow", "red", "purple"];
+  const idx = order.indexOf(currentStatus);
+  if (idx === -1) return "green";
+  return order[(idx + 1) % order.length];
+}
+
+function applyLayerStatus(layer, status) {
+  if (!layer.feature) layer.feature = {};
+  if (!layer.feature.properties) layer.feature.properties = {};
+
+  layer.feature.properties.status = status;
+  layer.feature.properties.color = status;
+  layer.feature.properties._color = STATUS_COLOR_MAP[status] || STATUS_COLOR_MAP.blue;
+
+  if (layer.setStyle) {
+    layer.setStyle({
+      color: STATUS_COLOR_MAP[status] || STATUS_COLOR_MAP.blue
+    });
+  }
+}
+
+function saveStatusToLocal(layer) {
+  const roadId = getLayerRoadId(layer);
+  const status = layer?.feature?.properties?.status;
+  if (!roadId || !status) return;
+
+  const saved = JSON.parse(localStorage.getItem("roadStatusMap") || "{}");
+  saved[roadId] = status;
+  localStorage.setItem("roadStatusMap", JSON.stringify(saved));
+}
+
+function loadStatusFromLocal(layer) {
+  const roadId = getLayerRoadId(layer);
+  if (!roadId) return;
+
+  const saved = JSON.parse(localStorage.getItem("roadStatusMap") || "{}");
+  const savedStatus = saved[roadId];
+
+  if (!savedStatus) return;
+
+  applyLayerStatus(layer, savedStatus);
+}
+
+function updateSummaryCounts() {
+  let counts = {
+    blue: 0,
+    green: 0,
+    yellow: 0,
+    red: 0,
+    purple: 0,
+    unknown: 0
+  };
+
+  for (let lid in layerStore) {
+    const layer = layerStore[lid];
+    if (!layer || !layer.feature || !layer.feature.properties) continue;
+
+    const status = layer.feature.properties.status || layer.feature.properties.color || "blue";
+
+    if (counts[status] !== undefined) {
+      counts[status]++;
+    } else {
+      counts.unknown++;
+    }
+  }
+
+  console.log("Summary counts:", counts);
+
+  // TODO: เปลี่ยน selector ให้ตรงกับ HTML panel ซ้ายของจริง
+  const elBlue = document.getElementById("count-blue");
+  const elGreen = document.getElementById("count-green");
+  const elYellow = document.getElementById("count-yellow");
+  const elRed = document.getElementById("count-red");
+  const elPurple = document.getElementById("count-purple");
+  const elUnknown = document.getElementById("count-unknown");
+
+  if (elBlue) elBlue.textContent = counts.blue;
+  if (elGreen) elGreen.textContent = counts.green;
+  if (elYellow) elYellow.textContent = counts.yellow;
+  if (elRed) elRed.textContent = counts.red;
+  if (elPurple) elPurple.textContent = counts.purple;
+  if (elUnknown) elUnknown.textContent = counts.unknown;
+}
+
+function setRoadStatus(layer, newStatus = null) {
+  const currentStatus =
+    layer?.feature?.properties?.status ||
+    layer?.feature?.properties?.color ||
+    "blue";
+
+  const statusToApply = newStatus || getNextStatus(currentStatus);
+
+  applyLayerStatus(layer, statusToApply);
+  saveStatusToLocal(layer);
+  updateSummaryCounts();
+}
         window.toggleLayer = function(lid, checked) { if (checked) map.addLayer(layerStore[lid]); else map.removeLayer(layerStore[lid]); };
         function handleDelete(layer) { const row = document.getElementById('row-' + L.stamp(layer)); if(row) row.remove(); delete layerStore[L.stamp(layer)]; }
 
