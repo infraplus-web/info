@@ -1121,9 +1121,34 @@ function setupLayer(layer, subId, props) {
   const lid = L.stamp(layer);
   layerStore[lid] = layer;
   layer.subId = subId;
-  layer.feature = layer.feature || { type: "Feature", properties: props || {} };
-    if (!layer.feature.properties._originalColor) {
-  layer.feature.properties._originalColor = layer.feature.properties._color || "#3388ff";
+layer.feature = layer.feature || { type: "Feature", properties: props || {} };
+
+const c =
+  layer.feature.properties._color ||
+  STATUS_COLOR_MAP[layer.feature.properties.status] ||
+  STATUS_COLOR_MAP[layer.feature.properties.color];
+
+if (c) {
+
+  if (layer.setStyle) {
+    layer.setStyle({
+      color: c,
+      fillColor: c
+    });
+  }
+
+  if (layer instanceof L.Marker) {
+    const svgIcon = L.divIcon({
+      className: 'custom-div-icon',
+      html: `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="36" height="36" fill="${c}" stroke="#ffffff" stroke-width="1.5"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>`,
+      iconSize: [36,36],
+      iconAnchor: [18,36],
+      popupAnchor: [0,-36]
+    });
+
+    layer.setIcon(svgIcon);
+  }
+
 }
 loadStatusFromLocal(layer);
 
@@ -1681,10 +1706,12 @@ function setRoadStatus(layer, newStatus = null) {
         }
 
         // --- CORE SAVE FUNCTION ---
-        async function confirmSaveToSupabase() {
-            const nameInput = document.getElementById('projectNameInput'); 
-            const projectName = nameInput.value;
-            if (!projectName) { alert("กรุณาตั้งชื่อก่อนครับ"); return; }
+        const geojson = layer.toGeoJSON();
+
+geojson.properties = {
+  ...layer.feature.properties,
+  _color: layer.feature.properties._color
+};
             
             const btn = document.getElementById('btnConfirmSave'); 
             const spinner = document.getElementById('btn-spinner');
@@ -1696,12 +1723,32 @@ function setRoadStatus(layer, newStatus = null) {
             const layersData = [];
             if (typeof layerStore !== 'undefined') {
                 for (let id in layerStore) {
-                    const layer = layerStore[id]; const gid = layer.subId || 'Uncategorized';
-                    let title = "Group " + gid;
-                    try { const el = document.getElementById(gid); if(el && el.previousElementSibling) title = el.previousElementSibling.querySelector('.group-title').innerText; } catch(e){}
-                    const geojson = layer.toGeoJSON(); geojson.properties = layer.feature.properties; 
-                    layersData.push({ id: gid, name: title, features: geojson });
-                }
+
+  const layer = layerStore[id];
+  const gid = layer.subId || 'Uncategorized';
+
+  let title = "Group " + gid;
+
+  try {
+    const el = document.getElementById(gid);
+    if (el && el.previousElementSibling)
+      title = el.previousElementSibling.querySelector('.group-title').innerText;
+  } catch(e){}
+
+  const geojson = layer.toGeoJSON();
+
+  geojson.properties = {
+    ...layer.feature.properties,
+    _color: layer.feature.properties._color || "#3388ff"
+  };
+
+  layersData.push({
+    id: gid,
+    name: title,
+    features: geojson
+  });
+
+}
             }
 
             try {
