@@ -28,7 +28,35 @@
 .road-code-label:before {
   display: none;
 }
-        
+.road-code-label:before {
+  display: none;
+}
+
+/* ---- COLOR PICKER ---- */
+.color-picker{
+display:flex;
+gap:6px;
+margin-bottom:6px;
+}
+
+.color-dot{
+width:16px;
+height:16px;
+border-radius:50%;
+cursor:pointer;
+border:2px solid #fff;
+box-shadow:0 0 3px rgba(0,0,0,0.4);
+}
+
+.color-dot.blue{background:#1a73e8;}
+.color-dot.green{background:#34a853;}
+.color-dot.yellow{background:#fbbc05;}
+.color-dot.red{background:#ea4335;}
+.color-dot.purple{background:#9c27b0;}
+
+.color-dot.active{
+border:2px solid black;
+}     
         /* --- GLOBAL --- */
         body, html { 
             margin: 0; padding: 0; height: 100%; width: 100%; 
@@ -1745,21 +1773,48 @@ function setRoadStatus(layer, newStatus = null) {
   }
 }
 function createPopup(layer, name) {
+
   const lid = L.stamp(layer);
   const desc = layer.feature?.properties?.description || "";
+  const currentColor = layer.feature?.properties?.color || "blue";
 
   return `
-    <div class="popup-header">
+  <div class="popup-header">
       <input class="popup-title-inp" id="pt-${lid}" value="${name}" readonly />
-    </div>
-    <div class="popup-body">
+  </div>
+
+  <div class="popup-body">
       <textarea class="popup-desc-inp" id="pd-${lid}" readonly>${desc}</textarea>
-    </div>
-    <div class="popup-footer">
-      <i class="fa-solid fa-pen pop-icon" title="แก้ไข" onclick="enableEdit(${lid})"></i>
-      <i class="fa-solid fa-floppy-disk pop-icon" title="บันทึก" onclick="saveEdit(${lid})"></i>
-      <i class="fa-solid fa-trash pop-icon" title="ลบ" onclick="deleteFeature(${lid})"></i>
-    </div>
+  </div>
+
+  <div class="popup-footer">
+
+      <div class="color-picker">
+
+        <span class="color-dot blue ${currentColor==="blue"?"active":""}" 
+        onclick="changeColor(${lid},'blue')"></span>
+
+        <span class="color-dot green ${currentColor==="green"?"active":""}" 
+        onclick="changeColor(${lid},'green')"></span>
+
+        <span class="color-dot yellow ${currentColor==="yellow"?"active":""}" 
+        onclick="changeColor(${lid},'yellow')"></span>
+
+        <span class="color-dot red ${currentColor==="red"?"active":""}" 
+        onclick="changeColor(${lid},'red')"></span>
+
+        <span class="color-dot purple ${currentColor==="purple"?"active":""}" 
+        onclick="changeColor(${lid},'purple')"></span>
+
+      </div>
+
+      <div class="popup-actions">
+        <i class="fa-solid fa-pen pop-icon" onclick="enableEdit(${lid})"></i>
+        <i class="fa-solid fa-floppy-disk pop-icon" onclick="saveEdit(${lid})"></i>
+        <i class="fa-solid fa-trash pop-icon" onclick="deleteFeature(${lid})"></i>
+      </div>
+
+  </div>
   `;
 }
 
@@ -1769,9 +1824,34 @@ function enableEdit(lid) {
   document.getElementById(`pt-${lid}`)?.focus();
 }
 
-function changeColor(lid, c) {
-  const l = layerStore[lid];
-  if (!l) return;
+function changeColor(lid, color) {
+
+  const layer = layerStore[lid];
+  if (!layer) return;
+
+  const colorMap = {
+    blue: "#1a73e8",
+    green: "#34a853",
+    yellow: "#fbbc05",
+    red: "#ea4335",
+    purple: "#9c27b0"
+  };
+
+  const hex = colorMap[color] || "#1a73e8";
+
+  if (layer.setStyle) {
+    layer.setStyle({
+      color: hex,
+      weight: 5
+    });
+  }
+
+  if (!layer.feature) layer.feature = {};
+  if (!layer.feature.properties) layer.feature.properties = {};
+
+  layer.feature.properties.color = color;
+
+  updateProjectSummary();
 }
 
 function saveEdit(lid) {
