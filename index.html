@@ -507,7 +507,9 @@ border:2px solid black;
     <script src="https://cdn.jsdelivr.net/npm/exif-js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
     
-    <script src="https://maps.googleapis.com/maps/api/js?key=YOUR_GOOGLE_MAPS_API_KEY&libraries=places"></script>
+    <script async
+src="https://maps.googleapis.com/maps/api/js?key=AIzaSyXXXXXXXXXXXX&libraries=places">
+</script>
 
     <script>
         // --- CONFIG ---
@@ -1705,104 +1707,95 @@ function setRoadStatus(layer, newStatus = null) {
             toast.classList.add('show'); setTimeout(() => { toast.classList.remove('show'); }, 3000);
         }
 
-   async function confirmSave() {
+   async function confirmSaveToSupabase(){
 
-  // --- CORE SAVE FUNCTION ---
-  const geojson = layer.toGeoJSON();
+const projectName = document.getElementById('projectNameInput').value.trim();
 
-  geojson.properties = {
-    ...layer.feature.properties,
-    _color: layer.feature.properties._color
-  };
+if(!projectName){
+alert("กรุณาตั้งชื่อโปรเจกต์");
+return;
+}
 
-  const btn = document.getElementById('btnConfirmSave');
-  const spinner = document.getElementById('btn-spinner');
-  const btnText = document.getElementById('btn-text');
+const btn = document.getElementById('btnConfirmSave');
+const spinner = document.getElementById('btn-spinner');
+const btnText = document.getElementById('btn-text');
 
-  btn.disabled = true;
-  spinner.style.display = 'block';
-  btnText.innerText = "กำลังบันทึก...";
+btn.disabled = true;
+spinner.style.display = 'block';
+btnText.innerText = "กำลังบันทึก...";
 
-  const mapState = {
-    lat: map.getCenter().lat,
-    lng: map.getCenter().lng,
-    zoom: map.getZoom()
-  };
+const mapState = {
+lat: map.getCenter().lat,
+lng: map.getCenter().lng,
+zoom: map.getZoom()
+};
 
-  const layersData = [];
+const layersData = [];
 
-  if (typeof layerStore !== "undefined") {
-    for (let id in layerStore) {
+Object.values(layerStore).forEach(layer=>{
 
-      const layer = layerStore[id];
-      const gid = layer.subId || 'Uncategorized';
+const geo = layer.toGeoJSON();
 
-      let title = "Group " + gid;
+geo.properties = {
+...layer.feature.properties,
+_color: layer.feature.properties._color || "#3388ff"
+};
 
-      try {
-        const el = document.getElementById(gid);
-        if (el && el.previousElementSibling)
-          title = el.previousElementSibling.querySelector('.group-title').innerText;
-      } catch(e){}
+layersData.push({
+id: layer.subId || "default",
+name: geo.properties._layerName || "Layer",
+features: geo
+});
 
-      const geojson = layer.toGeoJSON();
+});
 
-      geojson.properties = {
-        ...layer.feature.properties,
-        _color: layer.feature.properties._color || "#3388ff"
-      };
+try{
 
-      layersData.push({
-        id: gid,
-        name: title,
-        features: geojson
-      });
-    }
-  }
+let result;
 
-  try {
+if(currentProjId){
 
-    let errorData, resultData;
+result = await dbClient
+.from('projects')
+.update({
+name: projectName,
+map_state: mapState,
+layers: layersData
+})
+.eq('id', currentProjId)
+.select();
 
-    if (currentProjId) {
+}else{
 
-      const { data, error } = await dbClient.from('projects')
-        .update({
-          name: projectName,
-          map_state: mapState,
-          layers: layersData
-        })
-        .eq('id', currentProjId)
-        .select();
+result = await dbClient
+.from('projects')
+.insert([{
+name: projectName,
+map_state: mapState,
+layers: layersData
+}])
+.select();
 
-      errorData = error;
-      resultData = data;
+currentProjId = result.data[0].id;
 
-    } else {
+}
 
-      const { data, error } = await dbClient.from('projects')
-        .insert([{
-          name: projectName,
-          map_state: mapState,
-          layers: layersData
-        }])
-        .select();
+document.getElementById('proj-name').value = projectName;
 
-      errorData = error;
-      resultData = data;
+showModernSuccess("บันทึกสำเร็จ","โปรเจกต์ถูกบันทึกแล้ว");
 
-    }
+}catch(err){
 
-    if (errorData) throw errorData;
+console.error(err);
+alert("บันทึกไม่สำเร็จ");
 
-    if (resultData && resultData.length > 0)
-      currentProjId = resultData[0].id;
+}
 
-  } catch (err) {
+spinner.style.display = 'none';
+btnText.innerText = "บันทึกทันที";
+btn.disabled = false;
 
-    console.error(err);
-
-  }
+closeSaveModal();
 
 }
 
