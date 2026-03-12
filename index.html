@@ -1664,26 +1664,44 @@ function setRoadStatus(layer, newStatus = null) {
             }
         }
 
-        async function autoSave() {
-            if (!currentProjId) return; 
-            const statusBox = document.getElementById('auto-save-status'); const dot = document.getElementById('save-dot'); const txt = document.getElementById('save-text');
-            statusBox.classList.add('show'); dot.className = 'status-dot saving'; txt.innerText = 'กำลังบันทึกอัตโนมัติ...';
-            const mapState = { lat: map.getCenter().lat, lng: map.getCenter().lng, zoom: map.getZoom() };
-            const layers = [];
-            if (typeof layerStore !== 'undefined') {
-                for (let id in layerStore) {
-                    const layer = layerStore[id]; const gid = layer.subId || 'Uncategorized';
-                    let title = "Group " + gid;
-                    try { const el = document.getElementById(gid); if(el && el.previousElementSibling) title = el.previousElementSibling.querySelector('.group-title').innerText; } catch(e){}
-                    layers.push({ id: gid, name: title, features: layerStore[id].toGeoJSON() });
-                }
-            }
-            try {
-                const { error } = await dbClient.from('projects').update({ map_state: mapState, layers: layers }).eq('id', currentProjId);
-                if (error) throw error;
-                setTimeout(() => { dot.className = 'status-dot saved'; txt.innerText = 'บันทึกแล้ว'; setTimeout(() => { statusBox.classList.remove('show'); }, 2000); }, 500);
-            } catch (err) { console.error("Auto-save failed:", err); dot.style.background = 'red'; txt.innerText = 'บันทึกไม่สำเร็จ'; }
-        }
+      async function autoSave() {
+  if (!currentProjId) return;
+
+  const statusBox = document.getElementById('auto-save-status');
+  const dot = document.getElementById('save-dot');
+  const txt = document.getElementById('save-text');
+
+  statusBox.classList.add('show');
+  dot.className = 'status-dot saving';
+  txt.innerText = 'กำลังบันทึกอัตโนมัติ...';
+
+  const mapState = {
+    lat: map.getCenter().lat,
+    lng: map.getCenter().lng,
+    zoom: map.getZoom()
+  };
+
+  try {
+    const { error } = await dbClient
+      .from('projects')
+      .update({ map_state: mapState })
+      .eq('id', currentProjId);
+
+    if (error) throw error;
+
+    dot.className = 'status-dot saved';
+    txt.innerText = 'บันทึกแล้ว';
+
+    setTimeout(() => {
+      statusBox.classList.remove('show');
+    }, 2000);
+
+  } catch (err) {
+    console.error('Auto-save failed:', err);
+    dot.style.background = 'red';
+    txt.innerText = 'บันทึกไม่สำเร็จ';
+  }
+}
 
         function createPopup(layer, name) {
             const lid = L.stamp(layer); const desc = layer.feature.properties.description || "";
