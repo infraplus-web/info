@@ -1800,6 +1800,7 @@ closeSaveModal();
 }
 
       async function autoSave() {
+
   if (!currentProjId) return;
 
   const statusBox = document.getElementById('auto-save-status');
@@ -1815,8 +1816,9 @@ closeSaveModal();
     lng: map.getCenter().lng,
     zoom: map.getZoom()
   };
-}
+
   try {
+
     const { error } = await dbClient
       .from('projects')
       .update({ map_state: mapState })
@@ -1832,9 +1834,11 @@ closeSaveModal();
     }, 2000);
 
   } catch (err) {
+
     console.error('Auto-save failed:', err);
     dot.style.background = 'red';
     txt.innerText = 'บันทึกไม่สำเร็จ';
+
   }
 }
 function createPopup(layer, name) {
