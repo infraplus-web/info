@@ -1571,17 +1571,30 @@ function setRoadStatus(layer, newStatus = null) {
 
   L.geoJSON(features, {
     pointToLayer: function (feature, latlng) {
-      return createCustomMarker(latlng, '#1a73e8');
+      const c = feature?.properties?._color || '#1a73e8';
+      return createCustomMarker(latlng, c);
+    },
+    style: function (feature) {
+      const c = feature?.properties?._color || '#3388ff';
+      return {
+        color: c,
+        fillColor: c,
+        weight: 4
+      };
     },
     onEachFeature: (f, l) => {
-      f.properties._layerName = document.getElementById(subId).previousElementSibling.querySelector('.group-title').innerText;
+      f.properties = f.properties || {};
+      f.properties._layerName =
+        document.getElementById(subId).previousElementSibling.querySelector('.group-title').innerText;
+
       setupLayer(l, subId, f.properties);
       grp.addLayer(l);
     }
   });
 
   if (grp.getLayers().length) {
-    map.fitBounds(grp.getBounds());
+    grp.addTo(map);
+    map.fitBounds(grp.getBounds(), { padding: [40, 40] });
   }
 
   showLoader(false);
