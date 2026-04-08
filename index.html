@@ -587,7 +587,7 @@ function updateProjectSummary() {
   });
 
   let html = `<div style="margin-bottom:6px;"><span style="font-weight:700;">สรุปสถานะเส้นทาง</span></div>`;
-  html += `<div style="margin:4px 0;"><i class="fa-solid fa-road"></i> <b>เส้นทั้งหมด:</b> <b style="color:#1a73e8;">${total}</b> เส้น</div>`;
+  html += `<div style="margin:4px 0;"><i class="fa-solid fa-road"></i> <b>เส้นทั้งหมด:</b> <b style="color:#1a73e8;">${total}</b></div>`;
   
   if (statusCount["สีฟ้า"] > 0) html += `<div style="margin:3px 0;">🔵 <b>สีฟ้า:</b> <b>${statusCount["สีฟ้า"]}</b></div>`;
   if (statusCount["สีเขียว"] > 0) html += `<div style="margin:3px 0;">🟢 <b>สีเขียว:</b> <b>${statusCount["สีเขียว"]}</b></div>`;
