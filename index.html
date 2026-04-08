@@ -111,15 +111,15 @@ border:2px solid black;
         /* --- MAP LAYOUT & SIDEBAR --- */
         #map-view { display: none; height: 100%; width: 100%; position: fixed; top: 0; left: 0; background: #fff; }
         
-        #sidebar-container { display: flex; height: 100%; position: relative; z-index: 2000; box-shadow: 2px 0 5px rgba(0,0,0,0.1); }
+        #sidebar-container { display: flex; height: 100%; position: relative; z-index: 2000; box-shadow: 2px 0 5px rgba(0,0,0,0.1); overflow-x: hidden; overflow-y: auto; }
 
-        #sidebar-left { width: 320px; min-width: 280px; max-width: 500px; background: #fff; display: flex; flex-direction: column; flex-shrink: 0; }
+        #sidebar-left { width: 320px; min-width: 280px; max-width: 500px; background: #fff; display: flex; flex-direction: column; flex-shrink: 0; overflow-y: auto; overflow-x: hidden; height: fit-content; min-height: 100%; }
         .resizer { width: 5px; cursor: col-resize; background: #f1f3f4; border-left: 1px solid #ddd; transition: 0.2s; display: flex; align-items: center; justify-content: center; color: #ccc; font-size: 10px; }
         .resizer:hover, .resizer.resizing { background: #1a73e8; color: white; }
 
         #toggle-sidebar-btn { position: absolute; top: 15px; left: 15px; z-index: 3000; background: white; border: 1px solid #ccc; width: 40px; height: 40px; border-radius: 4px; cursor: pointer; display: none; align-items: center; justify-content: center; font-size: 20px; color: #5f6368; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
 
-        .editor-header { padding: 15px; border-bottom: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; }
+        .editor-header { padding: 15px; border-bottom: 1px solid #eee; display: flex; flex-direction: column; gap: 10px; flex-shrink: 0; }
         .header-top { display: flex; align-items: center; justify-content: space-between; }
         .brand-text { font-size: 18px; font-weight: 700; color: #1a73e8; text-transform: uppercase; }
         .btn-back { cursor: pointer; color: #5f6368; padding: 5px; font-size: 18px; }
@@ -127,7 +127,10 @@ border:2px solid black;
         .project-name { border: none; font-size: 16px; font-weight: 600; width: 100%; outline: none; border-bottom: 1px solid transparent; }
         .project-name:focus { border-bottom: 2px solid #1a73e8; }
 
-        .sidebar-actions { padding: 10px 15px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; gap: 8px; }
+        .sidebar-actions { padding: 10px 15px; background: #f8f9fa; border-bottom: 1px solid #ddd; display: flex; flex-direction: column; gap: 8px; overflow-y: auto; }
+        
+        #layer-list { flex: 1; overflow-y: auto; padding: 0; }
+        
         .action-row { width: 100%; padding: 8px; background: #fff; border: 1px solid #dadce0; border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .action-row:hover { background: #e8f0fe; color: #1a73e8; border-color: #1a73e8; }
         .action-row.disabled { opacity: 0.5; cursor: not-allowed; background: #eee; color: #999; }
@@ -445,7 +448,7 @@ border:2px solid black;
   <i class="fa-solid fa-download"></i> ส่งออกข้อมูลทั้งหมด (Export All)
 </div>
 
-<div id="project-summary-box" style="margin:10px 0; padding:12px; background:#f8f9fa; border:1px solid #dcdfe6; border-radius:8px; font-size:12px; color:#333;">
+<div id="project-summary-box" style="margin:10px 0; padding:12px; background:#f8f9fa; border:1px solid #dcdfe6; border-radius:8px; font-size:12px; color:#333; max-height:300px; overflow-y:auto;">
   <div style="font-weight:700; margin-bottom:10px; color:#1a73e8; font-size:14px;">สรุปจำนวนเส้นทั้งโปรเจกต์</div>
   <div id="project-summary-content" style="line-height:1.6; color:#444;">ยังไม่มีข้อมูล</div>
 </div>
@@ -526,6 +529,7 @@ const groupLayerStore = {};
         let isSplitMode = false;
         let highlightLayer = null; 
         let isGlobalExport = false; 
+        let openCloseFilterMode = 'road'; // 'road' or 'code'
 
         // --- HISTORY SYSTEM ---
         let historyStack = [];
@@ -600,13 +604,33 @@ function updateProjectSummary() {
   // Show open/close status if any exist
   if (openCount > 0 || closeCount > 0) {
     html += `<div style="margin-top:6px; border-top:1px solid #e0e0e0; padding-top:6px;">`;
-    html += `<span style="font-size:12px; font-weight:700; color:#555;">📍 สถานะเปิด-ปิด</span><br>`;
+    html += `<span style="font-size:12px; font-weight:700; color:#555;">📍 สถานะเปิด-ปิด</span>`;
+    html += `<div style="display:flex; gap:6px; margin:6px 0; font-size:11px;">`;
+    html += `<button onclick="filterOpenCloseData('road')" id="btn-filter-road" style="flex:1; padding:4px; background:#fff; border:1px solid #1a73e8; color:#1a73e8; border-radius:4px; cursor:pointer; font-weight:600; font-size:11px;">📍 เส้นทาง</button>`;
+    html += `<button onclick="filterOpenCloseData('code')" id="btn-filter-code" style="flex:1; padding:4px; background:#fff; border:1px solid #999; color:#999; border-radius:4px; cursor:pointer; font-weight:600; font-size:11px;">🔢 หมายเลข</button>`;
+    html += `</div><br>`;
     if (openCount > 0) html += `<div style="margin:2px 0; font-size:12px;">✅ <b>เปิด:</b> <b style="color:#22c55e;">${openCount}</b></div>`;
     if (closeCount > 0) html += `<div style="margin:2px 0; font-size:12px;">❌ <b>ปิด:</b> <b style="color:#ef4444;">${closeCount}</b></div>`;
     html += `</div>`;
   }
 
   el.innerHTML = html;
+}
+
+function filterOpenCloseData(mode) {
+  openCloseFilterMode = mode;
+  
+  // Update button styles
+  const btnRoad = document.getElementById('btn-filter-road');
+  const btnCode = document.getElementById('btn-filter-code');
+  
+  if (mode === 'road') {
+    if (btnRoad) { btnRoad.style.background = '#1a73e8'; btnRoad.style.color = '#fff'; btnRoad.style.borderColor = '#1a73e8'; }
+    if (btnCode) { btnCode.style.background = '#fff'; btnCode.style.color = '#999'; btnCode.style.borderColor = '#999'; }
+  } else {
+    if (btnRoad) { btnRoad.style.background = '#fff'; btnRoad.style.color = '#1a73e8'; btnRoad.style.borderColor = '#1a73e8'; }
+    if (btnCode) { btnCode.style.background = '#eaeaea'; btnCode.style.color = '#000'; btnCode.style.borderColor = '#999'; btnCode.style.fontWeight = '700'; }
+  }
 }
 
         function recordHistory() {
