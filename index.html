@@ -1766,13 +1766,24 @@ function getOpenCloseLabel(props) {
                     
                     let center = l.getLatLng ? l.getLatLng() : l.getBounds().getCenter();
                     
+                    // Get export properties - include all edited data
                     let exportProps = { ...l.feature.properties };
                     exportProps.lat = center.lat.toFixed(6);
                     exportProps.lng = center.lng.toFixed(6);
-                    delete exportProps._color; // ลบรหัสสีออกก่อนส่งออก
+                    
+                    // Keep important meta properties but remove internal ones
+                    delete exportProps._color;
+                    delete exportProps._visible;
+                    delete exportProps._layerName;
+                    delete exportProps._originalColor;
 
-                    let f = l.toGeoJSON(); 
-                    f.properties = exportProps; 
+                    // Build feature with current geometry and updated properties
+                    let geoJson = l.toGeoJSON();
+                    let f = {
+                        type: "Feature",
+                        geometry: geoJson.geometry,
+                        properties: exportProps
+                    };
                     data.push(f); 
                 } 
             }); 
