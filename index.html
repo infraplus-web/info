@@ -1533,7 +1533,7 @@ function setRoadStatus(layer, newStatus = null) {
         function openTable(targetGroup, menuId, subId) {
             if(menuId) document.getElementById(menuId).style.display = 'none';
             currentTableGroup = targetGroup; currentTableSubId = subId;
-            let headers = new Set(['name', 'description', 'distance', 'lat', 'lng']), tableData = []; 
+            let headers = new Set(['name', 'description', 'distance', 'color', 'status', 'lat', 'lng']), tableData = []; 
             
             Object.values(layerStore).forEach(l => { 
                 if(l.feature.properties._layerName === targetGroup) { 
@@ -1578,7 +1578,28 @@ function setRoadStatus(layer, newStatus = null) {
             function closeDragElement() { document.onmouseup = null; document.onmousemove = null; }
         }
 
-        function updateCell(lid, key, value) { if(layerStore[lid]) layerStore[lid].feature.properties[key] = value; recordHistory(); }
+        function updateCell(lid, key, value) { 
+            if(!layerStore[lid]) return;
+            
+            layerStore[lid].feature.properties[key] = value;
+            
+            // If color or status is updated, apply the change to the layer
+            if(key === 'color' || key === 'status') {
+                const layer = layerStore[lid];
+                const colorHex = STATUS_COLOR_MAP[value] || STATUS_COLOR_MAP.blue;
+                layer.feature.properties.color = value;
+                layer.feature.properties.status = value;
+                layer.feature.properties._color = colorHex;
+                
+                // Update layer style
+                if(layer.setStyle) {
+                    layer.setStyle({ color: colorHex, fillColor: colorHex });
+                }
+            }
+            
+            recordHistory(); 
+            updateProjectSummary();
+        }
         function addNewColumn() { showInputModal("เพิ่มคอลัมน์ใหม่", "ชื่อ:", (colName) => { if(colName) { Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === currentTableGroup) l.feature.properties[colName] = ""; }); openTable(currentTableGroup, null, currentTableSubId); recordHistory(); } }); }
         function deleteColumn(colName) { showModal("ลบ", "ยืนยัน?", true, () => { Object.values(layerStore).forEach(l => { if(l.feature.properties._layerName === currentTableGroup) delete l.feature.properties[colName]; }); openTable(currentTableGroup, null, currentTableSubId); closeModal(); recordHistory(); }); }
         function deleteTableRow(lid) { showModal("ลบ", "ยืนยัน?", true, () => { const layer = layerStore[lid]; map.removeLayer(layer); const row = document.getElementById('row-' + lid); if(row) row.remove(); delete layerStore[lid]; openTable(currentTableGroup, null, currentTableSubId); closeModal(); recordHistory(); }); }
@@ -1766,24 +1787,24 @@ function getOpenCloseLabel(props) {
                     
                     let center = l.getLatLng ? l.getLatLng() : l.getBounds().getCenter();
                     
-                    // Get export properties - include all edited data
                     let exportProps = { ...l.feature.properties };
                     exportProps.lat = center.lat.toFixed(6);
                     exportProps.lng = center.lng.toFixed(6);
                     
-                    // Keep important meta properties but remove internal ones
+                    // Keep important properties
+                    if (!exportProps.name) exportProps.name = '';
+                    if (!exportProps.description) exportProps.description = '';
+                    if (!exportProps.color) exportProps.color = l.feature.properties.status || 'blue';
+                    if (!exportProps.status) exportProps.status = l.feature.properties.status || 'blue';
+                    
+                    // Remove internal properties
                     delete exportProps._color;
-                    delete exportProps._visible;
                     delete exportProps._layerName;
+                    delete exportProps._visible;
                     delete exportProps._originalColor;
 
-                    // Build feature with current geometry and updated properties
-                    let geoJson = l.toGeoJSON();
-                    let f = {
-                        type: "Feature",
-                        geometry: geoJson.geometry,
-                        properties: exportProps
-                    };
+                    let f = l.toGeoJSON(); 
+                    f.properties = exportProps; 
                     data.push(f); 
                 } 
             }); 
